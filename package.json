@@ -1,0 +1,13 @@
+{
+  "name": "cox-timesheet",
+  "version": "1.0.0",
+  "description": "Autofiller for Cox timesheet",
+  "main": "index.js",
+  "repository": "https://github.com/edgarinvillegas/cox-timesheet",
+  "author": "edgarinvillegas@hotmail.com",
+  "license": "MIT",
+  "dependencies": {
+    "gmail-send": "^1.2.14",
+    "puppeteer": "^1.9.0"
+  }
+}
