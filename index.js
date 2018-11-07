@@ -1,18 +1,41 @@
 const puppeteer = require('puppeteer');
 
-const cfg = {
-    username: '',
-    password: '',
-    project: 'PRJ0020909',
-    category: 'Development',
-    hours: {
-        monday: 8,
-        tuesday: 8,
-        wednesday: 8,
-        thursday: 8,
-        friday: 0,
+let cfg = null;
+
+/**
+ * Get the configuration object.
+ * It reads from args/env/file and creates the file if it doesn't exist.
+ * @returns {*}
+ */
+function config() {
+    const fs    = require('fs');
+    const nconf = require('nconf');
+    const conf_defaults = {
+        "username": "",
+        "password": "",
+        "project": "PRJ0020909",
+        "category": "Development",
+        "hours": {
+            "monday": 8,
+            "tuesday": 8,
+            "wednesday": 8,
+            "thursday": 8,
+            "friday": 8
+        }
+    };
+    const conf_file = './config.json';    // __dirname + '/config.json'
+    if( ! fs.existsSync(conf_file) ) {
+        fs.writeFileSync( conf_file, JSON.stringify(conf_defaults, null, 2) );
     }
-};
+    nconf.file({file: conf_file});
+    nconf.argv()
+        .env()
+        .file({ file: conf_file })
+        .defaults(conf_defaults);
+
+    return nconf.get(null);
+}
+
 
 function extendPageWithJQuery(page){
     return Object.assign(page, {
@@ -88,10 +111,14 @@ function transformAddTimecardPostData(originalPostData) {
     return `values=${encodeURIComponent(valuesJsonStr)}`;
 }
 
+
+
 (async () => {
+    // Load configuration from file.
+    cfg = config();
+    // Load the page
     const page = await createPage();
     await page.goto('https://coxauto.service-now.com/time', {waitUntil: 'networkidle2'});
-
     // Some redirections might happen, so better to make sure that the username textbox exists
     await page.waitForSelector('#okta-signin-username');
     await page.screenshot({path: '01 login-page.png'});
@@ -170,9 +197,9 @@ function transformAddTimecardPostData(originalPostData) {
         return;
     }
     console.log('Ready to submit!!');
-    await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
-    await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
-    await page.screenshot({path: '07 Submitted'});
+    // await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
+    // await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
+    // await page.screenshot({path: '07 Submitted'});
     console.log('Done');
-    await browser.close();
+    // await browser.close();
 })();
