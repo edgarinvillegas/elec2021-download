@@ -1,4 +1,5 @@
 const puppeteer = require('puppeteer');
+const dateFns = require('date-fns');
 
 let cfg = null;
 
@@ -56,12 +57,18 @@ function extendPageWithJQuery(page){
          */
         triggerJqEvent: (selector, eventName) => page.evaluate((selector, eventName) => {
             window.jQuery(selector).trigger(eventName);
-        }, selector, eventName)
+        }, selector, eventName),
 
+        /**
+         * Gets the trimmed text of a jq selector
+         * @param jQuery selector
+         * @returns {string}
+         */
+        getTextJq: selector => page.evaluate(selector => window.jQuery(selector).text().trim(), selector)
     })
 }
 
-async function createPage() {
+async function createBrowserAndPage() {
     // Viewport && Window size
     const width = 1200;
     const height = 768;
@@ -76,7 +83,7 @@ async function createPage() {
     const page = extendPageWithJQuery(await browser.newPage());
     // Initial page
     await page.setViewport({width, height});
-    return page;
+    return { page, browser };
 }
 
 function transformAddTimecardPostData(originalPostData) {
@@ -111,35 +118,81 @@ function transformAddTimecardPostData(originalPostData) {
     return `values=${encodeURIComponent(valuesJsonStr)}`;
 }
 
+function getWeekPickerText(date = new Date()){
+    const startDate = dateFns.startOfWeek(date);
+    const endDate = dateFns.endOfWeek(date);
+    const startMonth = dateFns.format(startDate, 'MMMM');
+    const endMonth = dateFns.format(endDate, 'MMMM');
 
+    return startMonth === endMonth ?
+        `${startDate.getDate()} - ${endDate.getDate()} ${endMonth}` :  //18 - 24 November 2018
+        `${startDate.getDate()} ${startMonth} - ${endDate.getDate()} ${endMonth}`  // 25 November - 1 December 2018
+        // TODO: 30 December 2018 - 5 January 2019
+    ;
+}
 
 (async () => {
+    const targetDate = new Date();
     // Load configuration from file.
     cfg = config();
     // Load the page
-    const page = await createPage();
+    const { page, browser } = await createBrowserAndPage();
     await page.goto('https://coxauto.service-now.com/time', {waitUntil: 'networkidle2'});
-    // Some redirections might happen, so better to make sure that the username textbox exists
-    await page.waitForSelector('#okta-signin-username');
-    await page.screenshot({path: '01 login-page.png'});
+    // Login
+    await (async () => {
+        // Some redirections might happen, so better to make sure that the username textbox exists
+        await page.waitForSelector('#okta-signin-username');
+        await page.screenshot({path: '01 login-page.png'});
 
-    // Now we're on the login page. Enter credentials
-    await page.type('#okta-signin-username', cfg.username);
-    await page.type('#okta-signin-password', cfg.password);
+        // Now we're on the login page. Enter credentials
+        await page.type('#okta-signin-username', cfg.username);
+        await page.type('#okta-signin-password', cfg.password);
 
-    // Submit the form
-    await page.click('input[type="submit"]');
+        // Submit the form
+        await page.click('input[type="submit"]');
+    })();
+    // Go to timesheet page
+    await (async () => {
+        // This will go to another page, wait until it loads
+        await page.waitForSelector('.navpage-layout');
 
-    // This will go to another page, wait until it loads
-    await page.waitForSelector('.navpage-layout');
+        // The current page has the page we want as framed in. Let's go to it
+        await page.goto('https://coxauto.service-now.com/time', {waitUntil: 'networkidle2'});
 
-    // The current page has the page we want as framed in. Let's go to it
-    await page.goto('https://coxauto.service-now.com/time', {waitUntil: 'networkidle2'});
+        await page.waitForSelector('.date-selector button.icon-chevron-left');
+    })();
 
-    //************************************* Go temporarily to previous page
-    // await page.waitForSelector('.date-selector button.icon-chevron-left');
-    // await page.click('.date-selector button.icon-chevron-left');
-    // await page.waitForJqSelector('.date-selector:contains(28 October)');
+    // Go to correct date
+    await (async () => {
+        //************************************* Go temporarily to previous page
+        const targetDateTextStart = getWeekPickerText(targetDate);
+
+        const getCurrentDateText$ = () => page.getTextJq('.date-selector .date-range [role=heading]');
+
+        async function weekBack$(){
+            const dateText = await getCurrentDateText$();
+            await page.click('.date-selector button.icon-chevron-left');
+            await page.waitForJqSelector(`.date-selector:not(:contains(${dateText}))`)
+        }
+        while( !(await getCurrentDateText$()).startsWith(targetDateTextStart) ){
+            console.log('  Week back');
+            await weekBack$();
+        }
+        console.log('Gone back');
+    })();
+
+    /*
+    await (async () => {
+    })();
+    */
+    await (async () => {
+        //It can be PENDING, SUBMITED, PROCESSED
+        const timesheetState = (await page.getTextJq('.tcp-header .ts-data:contains(State) .ts-val')).toUpperCase();
+        if(timesheetState !== 'PENDING') {
+            console.log(`Can't submit the timesheet "${getWeekPickerText(targetDate)}" because it's in ${timesheetState} state`);
+            process.exit(0);
+        }
+    })();
 
     // Just in case wait for the project cards container
     await page.waitForSelector('.cards-panel-body');
@@ -201,5 +254,5 @@ function transformAddTimecardPostData(originalPostData) {
     // await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
     // await page.screenshot({path: '07 Submitted'});
     console.log('Done');
-    // await browser.close();
+    await browser.close();
 })();

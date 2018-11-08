@@ -7,6 +7,7 @@
   "author": "edgarinvillegas@hotmail.com",
   "license": "MIT",
   "dependencies": {
+    "date-fns": "^1.29.0",
     "gmail-send": "^1.2.14",
     "nconf": "^0.10.0",
     "puppeteer": "^1.9.0"
