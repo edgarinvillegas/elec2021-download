@@ -2,6 +2,7 @@ const puppeteer = require('puppeteer');
 const dateFns = require('date-fns');
 
 let cfg = null;
+let credentials = null;
 
 /**
  * Get the configuration object.
@@ -11,7 +12,7 @@ let cfg = null;
 function config() {
     const fs    = require('fs');
     const nconf = require('nconf');
-    const conf_defaults = {
+    /*const conf_defaults = {
         "username": "",
         "password": "",
         "project": "PRJ0000000",
@@ -23,14 +24,42 @@ function config() {
             "thursday": 8,
             "friday": 8
         }
-    };
+    };*/
+    const conf_defaults = {
+        "credentials": {
+            "coxEmail": "YOUR_NAME@coxautoinc.com",
+            "coxPassword": "",
+            "mojixEmail": "YOUR_NAME@mojix.com",
+            "mojixPassword": ""
+        },
+        "project": "PRJ0000000",
+        "category": "Development",
+        "defaultHours": {
+            "monday": 8,
+            "tuesday": 8,
+            "wednesday": 8,
+            "thursday": 8,
+            "friday": 8
+        },
+        /*"exceptionalHours": {
+            "2018-11-01": 0,
+            "2017-12-31:2018-01-01": 0,
+        },*/
+        "emailSettings": {
+            "to": ["cox_report@mojix.com"],
+            "cc": ["LEAD_NAME@mojix.com"],
+            "bcc": [],
+            "subjectTemplate": "{%weekend_date} 1234 PEREZ"
+        }
+    }
+
     const conf_file = __dirname + '/config.json';
     if( ! fs.existsSync(conf_file) ) {
         fs.writeFileSync( conf_file, JSON.stringify(conf_defaults, null, 2) );
         console.log(`Please edit ${conf_file} and rerun the application`);
         process.exit(1);
     }
-    nconf.file({file: conf_file});
+    // nconf.file({file: conf_file});
     nconf.argv()
         .env()
         .file({ file: conf_file })
@@ -140,23 +169,26 @@ function getWeekPickerText(date = new Date()){
     const targetDate = new Date();
     // Load configuration from file.
     cfg = config();
+    credentials = cfg.credentials;
     // Load the page
     const { page, browser } = await createBrowserAndPage();
     await page.goto('https://coxauto.service-now.com/time', {waitUntil: 'networkidle2'});
-    { // Login
+    // Login
+    {
         // Some redirections might happen, so better to make sure that the username textbox exists
         await page.waitForSelector('#okta-signin-username');
         await page.screenshot({path: '01 login-page.png'});
 
         // Now we're on the login page. Enter credentials
-        await page.type('#okta-signin-username', cfg.username);
-        await page.type('#okta-signin-password', cfg.password);
+        await page.type('#okta-signin-username', credentials.coxEmail);
+        await page.type('#okta-signin-password', credentials.coxPassword);
 
         // Submit the form
         await page.click('input[type="submit"]');
     }
 
-    { // Go to timesheet page
+    // Go to timesheet page
+    {
         // This will go to another page, wait until it loads
         await page.waitForSelector('.navpage-layout');
 
@@ -166,7 +198,8 @@ function getWeekPickerText(date = new Date()){
         await page.waitForSelector('.date-selector button.icon-chevron-left');
     }
 
-    { // Go to correct date
+    // Go to correct date
+    {
         //************************************* Go temporarily to previous page
         const targetDateTextStart = getWeekPickerText(targetDate);
 
@@ -182,7 +215,8 @@ function getWeekPickerText(date = new Date()){
         }
     }
 
-    { // Check timesheet status. If not PENDING, abort.
+    // Check timesheet status. If not PENDING, abort.
+    {
         //It can be PENDING, SUBMITED, PROCESSED
         const timesheetState = (await page.getTextJq('.tcp-header .ts-data:contains(State) .ts-val')).toUpperCase();
         if(timesheetState !== 'PENDING') {
@@ -191,7 +225,8 @@ function getWeekPickerText(date = new Date()){
         }
     }
 
-    { // Timesheet filling
+    // Timesheet filling
+    {
         async function getHourDifference() {
             // Get the total accumulated hours by day. Useful for validation. Won't be needed once we implement pre cleanup
             const actualTotalDailyHours = await page.evaluate(() => {
@@ -201,17 +236,17 @@ function getWeekPickerText(date = new Date()){
             const actualTotalDailyHoursObj = {}, differences = {};
             days.forEach( (day, i) =>  {
                 actualTotalDailyHoursObj[day] = actualTotalDailyHours[i];
-                differences[day] = (cfg.hours[day] || 0) - actualTotalDailyHoursObj[day];
+                differences[day] = (cfg.defaultHours[day] || 0) - actualTotalDailyHoursObj[day];
             });
             if(!Object.values(differences).every( h => h >= 0 )){
-                console.log('Error. Intended hours: ', cfg.hours, '\nCurrently logged: ', actualTotalDailyHoursObj, '.\nPlease submit your timesheet manually');
+                console.log('Error. Intended hours: ', cfg.defaultHours, '\nCurrently logged: ', actualTotalDailyHoursObj, '.\nPlease submit your timesheet manually');
             }
             return differences;
         }
 
         const hourDifferences = await getHourDifference();
+        // If there's a negative difference, it means we cannot submit it. TODO: Add automatic timesheet wipe to avoid this
         if(Object.values(hourDifferences).some( h => h < 0 )) {
-            // console.log('Error. Intended hours: ', cfg.hours, 'Would need to log: ', hourDifferences, '. Please submit your timesheet manually');
             await page.screenshot({path: '06 Error - Times dont match.png'});
             process.exit(3);
         } else if (Object.values(hourDifferences).every( h => h === 0)) {
@@ -268,5 +303,5 @@ function getWeekPickerText(date = new Date()){
         console.log('Done');
 
     }
-    await browser.close();
+    // await browser.close();
 })();
