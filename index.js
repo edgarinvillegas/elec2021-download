@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer');
 const dateFns = require('date-fns');
+const gmailSend = require('gmail-send');
 
 let cfg = null;
 let credentials = null;
@@ -12,19 +13,7 @@ let credentials = null;
 function config() {
     const fs    = require('fs');
     const nconf = require('nconf');
-    /*const conf_defaults = {
-        "username": "",
-        "password": "",
-        "project": "PRJ0000000",
-        "category": "Development",
-        "hours": {
-            "monday": 8,
-            "tuesday": 8,
-            "wednesday": 8,
-            "thursday": 8,
-            "friday": 8
-        }
-    };*/
+
     const conf_defaults = {
         "credentials": {
             "coxEmail": "YOUR_NAME@coxautoinc.com",
@@ -165,6 +154,24 @@ function getWeekPickerText(date = new Date()){
     return `${startDay} ${startMonthUI}${startYearUI}- ${endDay} ${endMonth} ${endYear}`;
 }
 
+function sendEmail(files) {
+    console.log('emailSettings: ', cfg.emailSettings);
+    const send = gmailSend({
+        user: credentials.mojixEmail,
+        pass: credentials.mojixPassword,
+        // pass: credentials.pass,                  // Application-specific password
+        to:   cfg.emailSettings.to,
+        bcc: cfg.emailSettings.bcc,            // almost any option of `nodemailer` will be passed to it
+        subject: cfg.emailSettings.subjectTemplate,
+        text:    'funciona!!!',         // Plain text
+        //html:    '<b>html text</b>'            // HTML
+        files: files,
+    });
+    send({}, function (err, res) {
+        console.log('Email attemp done. Err:', err, '; res:', res);
+    });
+}
+
 (async () => {
     const targetDate = new Date();
     // Load configuration from file.
@@ -227,11 +234,15 @@ function getWeekPickerText(date = new Date()){
 
     // Timesheet filling
     {
-        async function getHourDifference() {
-            // Get the total accumulated hours by day. Useful for validation. Won't be needed once we implement pre cleanup
-            const actualTotalDailyHours = await page.evaluate(() => {
+        async function getLoggedHours$() {
+            return await page.evaluate(() => {
                 return window.jQuery('#cal-container-1 .cal-container-4').map( (i, e) => parseInt($(e).text().trim()) ).get();
             });
+        }
+        
+        async function getHourDifference$() {
+            // Get the total accumulated hours by day. Useful for validation. Won't be needed once we implement pre cleanup
+            const actualTotalDailyHours = await getLoggedHours$()
             const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
             const actualTotalDailyHoursObj = {}, differences = {};
             days.forEach( (day, i) =>  {
@@ -244,7 +255,7 @@ function getWeekPickerText(date = new Date()){
             return differences;
         }
 
-        const hourDifferences = await getHourDifference();
+        const hourDifferences = await getHourDifference$();
         // If there's a negative difference, it means we cannot submit it. TODO: Add automatic timesheet wipe to avoid this
         if(Object.values(hourDifferences).some( h => h < 0 )) {
             await page.screenshot({path: '06 Error - Times dont match.png'});
@@ -299,9 +310,10 @@ function getWeekPickerText(date = new Date()){
         console.log('Ready to submit!!');
         // await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
         // await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
-        // await page.screenshot({path: '07 Submitted'});
+        const finalScreenshot = '07 Submitted.png';
+        await page.screenshot({path: finalScreenshot});
+        sendEmail([`./${finalScreenshot}`]);
         console.log('Done');
-
     }
     // await browser.close();
 })();
