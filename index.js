@@ -121,14 +121,17 @@ function transformAddTimecardPostData(originalPostData) {
 function getWeekPickerText(date = new Date()){
     const startDate = dateFns.startOfWeek(date);
     const endDate = dateFns.endOfWeek(date);
-    const startMonth = dateFns.format(startDate, 'MMMM');
-    const endMonth = dateFns.format(endDate, 'MMMM');
-
-    return startMonth === endMonth ?
-        `${startDate.getDate()} - ${endDate.getDate()} ${endMonth}` :  //18 - 24 November 2018
-        `${startDate.getDate()} ${startMonth} - ${endDate.getDate()} ${endMonth}`  // 25 November - 1 December 2018
-        // TODO: 30 December 2018 - 5 January 2019
-    ;
+    const [startYear, startMonth, startDay] = dateFns.format(startDate, 'YYYY MMMM D').split(' ');
+    const [endYear, endMonth, endDay] = dateFns.format(endDate, 'YYYY MMMM D').split(' ');
+    /*
+    * 3 scenarios to support:
+    * 18 - 24 November 2018
+    * 25 November - 1 December 2018
+    * 30 December 2018 - 5 January 2019
+    * */
+    const startMonthUI = startMonth === endMonth ? '' : `${startMonth} `;
+    const startYearUI = startYear === endYear ? '': `${startYear} `;
+    return `${startDay} ${startMonthUI}${startYearUI}- ${endDay} ${endMonth} ${endYear}`;
 }
 
 (async () => {
