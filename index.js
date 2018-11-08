@@ -24,11 +24,11 @@ function config() {
             "friday": 8
         }
     };
-    const conf_file = __dirname + '/config.json'
+    const conf_file = __dirname + '/config.json';
     if( ! fs.existsSync(conf_file) ) {
         fs.writeFileSync( conf_file, JSON.stringify(conf_defaults, null, 2) );
         console.log(`Please edit ${conf_file} and rerun the application`);
-        process.exit(0);
+        process.exit(1);
     }
     nconf.file({file: conf_file});
     nconf.argv()
@@ -63,7 +63,7 @@ function extendPageWithJQuery(page){
 
         /**
          * Gets the trimmed text of a jq selector
-         * @param jQuery selector
+         * @param {string} selector JQ Selector
          * @returns {string}
          */
         getTextJq: selector => page.evaluate(selector => window.jQuery(selector).text().trim(), selector)
@@ -88,7 +88,7 @@ async function createBrowserAndPage() {
     return { page, browser };
 }
 
-function transformAddTimecardPostData(originalPostData) {
+function transformAddTimecardPostData(originalPostData, hours) {
     //Decode originalPostData
     const urlEncodedValuesComponent = originalPostData.split('values=')[1];
     const values = JSON.parse(decodeURIComponent(urlEncodedValuesComponent));
@@ -113,7 +113,7 @@ function transformAddTimecardPostData(originalPostData) {
     }
     */
     //Update each day hours based on the config. It modifies values
-    Object.keys(cfg.hours).forEach( day => values.timecards[0][day] = String(cfg.hours[day]));
+    Object.keys(hours).forEach( day => values.timecards[0][day] = String(hours[day]));
     // Encode back
     const valuesJsonStr = JSON.stringify(values);
     // console.log('new Values', valuesJsonStr);
@@ -178,77 +178,89 @@ function getWeekPickerText(date = new Date()){
             await page.waitForJqSelector(`.date-selector:not(:contains(${dateText}))`)
         }
         while( !(await getCurrentDateText$()).startsWith(targetDateTextStart) ){
-            console.log('  Week back');
             await weekBack$();
         }
-        console.log('Gone back');
     }
 
     { // Check timesheet status. If not PENDING, abort.
         //It can be PENDING, SUBMITED, PROCESSED
         const timesheetState = (await page.getTextJq('.tcp-header .ts-data:contains(State) .ts-val')).toUpperCase();
         if(timesheetState !== 'PENDING') {
-            console.log(`Can't submit the timesheet "${getWeekPickerText(targetDate)}" because it's in ${timesheetState} state`);
+            console.log(`No need to submit timesheet "${getWeekPickerText(targetDate)}" because it's in ${timesheetState} state`);
             process.exit(0);
         }
     }
 
     { // Timesheet filling
-        // Just in case wait for the project cards container
-        await page.waitForSelector('.cards-panel-body');
-        await page.screenshot({path: '02 final-page.png'});
-
-        // Wait until we have the 'Add Line' button
-        const projectCardSelector = `.card:contains(${cfg.project})`;
-        const addLineBtnSelector = `${projectCardSelector} button:contains(Add Line Item)`;
-
-        // Click on the Add Line button
-        await page.waitForJqSelector(addLineBtnSelector);
-        await page.triggerJqEvent(addLineBtnSelector, 'click');
-        await page.screenshot({path: '03 Add Line clicked.png'});
-
-        // Wait until the 'Select time category' dropdown appears
-        const categoryDropdownSelector = `${projectCardSelector} .select2-container.project-category`;
-        // Click on the 'Select time category' dropdown, and get the projectId
-        await page.waitForJqSelector(`${categoryDropdownSelector} .select2-arrow`);
-        await page.triggerJqEvent(`${categoryDropdownSelector} .select2-arrow`, 'mousedown');
-
-        // Wait until the dropdown opens
-        await page.waitForSelector('ul.select2-results li.select2-result-selectable');
-        await page.screenshot({path: '04 Select category dropdown opened.png'});
-        // Click on the configured time category
-        await page.triggerJqEvent(`ul.select2-results li.select2-result-selectable div:contains(${cfg.category})`, 'mouseup');
-        await page.screenshot({path: '04 Select category dropdown opened.png'});
-        // Start request interception to spoof hours
-        await page.setRequestInterception(true);
-        page.on('request', interceptedRequest => {
-            if (interceptedRequest.url().includes('/timecardprocessor.do?sysparm_name=addToTimesheet&sysparm_processor=TimeCardPortalService')){
-                console.log('Intercepted /timecardprocessor.do');
-                interceptedRequest.continue({
-                    postData: transformAddTimecardPostData(interceptedRequest.postData())
-                });
-            } else {
-                interceptedRequest.continue();
+        async function getHourDifference() {
+            // Get the total accumulated hours by day. Useful for validation. Won't be needed once we implement pre cleanup
+            const actualTotalDailyHours = await page.evaluate(() => {
+                return window.jQuery('#cal-container-1 .cal-container-4').map( (i, e) => parseInt($(e).text().trim()) ).get();
+            });
+            const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const actualTotalDailyHoursObj = {}, differences = {};
+            days.forEach( (day, i) =>  {
+                actualTotalDailyHoursObj[day] = actualTotalDailyHours[i];
+                differences[day] = (cfg.hours[day] || 0) - actualTotalDailyHoursObj[day];
+            });
+            if(!Object.values(differences).every( h => h >= 0 )){
+                console.log('Error. Intended hours: ', cfg.hours, '\nCurrently logged: ', actualTotalDailyHoursObj, '.\nPlease submit your timesheet manually');
             }
-        });
-        // Click on the 'Add Time' button
-        await page.triggerJqEvent(`${projectCardSelector} button.btn-primary:contains(Add Time)`, 'click');
-        // Make sure the row was added
-        await page.waitForSelector(`.tc-row`);
-        await page.screenshot({path: '05 Timecard added.png'});
-
-        // Get the total accumulated hours by day. Useful for validation. Won't be needed once we implement pre cleanup
-        const totalDailyHours = await page.evaluate(() => {
-            return window.jQuery('#cal-container-1 .cal-container-4').map( (i, e) => parseInt($(e).text().trim()) ).get();
-        });
-        const totalHours = totalDailyHours.reduce( (prev, curr) => prev+curr );
-        const totalIntendedHours = Object.values(cfg.hours).reduce( (prev, curr) => prev+curr );
-        if(totalHours !== totalIntendedHours) {
-            console.log('Error. Intended hours: ', totalIntendedHours, 'Actual hours: ', totalHours, '. Please submit your timesheet manually');
-            await page.screenshot({path: '06 Error - Times dont match.png'});
-            // await browser.close();
-            process.exit(1);
+            return differences;
         }
+
+        const hourDifferences = await getHourDifference();
+        if(Object.values(hourDifferences).some( h => h < 0 )) {
+            // console.log('Error. Intended hours: ', cfg.hours, 'Would need to log: ', hourDifferences, '. Please submit your timesheet manually');
+            await page.screenshot({path: '06 Error - Times dont match.png'});
+            process.exit(3);
+        } else if (Object.values(hourDifferences).every( h => h === 0)) {
+            console.log('Already logged desired hours. Skipping logging');
+        } else {
+            // Just in case wait for the project cards container
+            await page.waitForSelector('.cards-panel-body');
+            await page.screenshot({path: '02 final-page.png'});
+
+            // Wait until we have the 'Add Line' button
+            const projectCardSelector = `.card:contains(${cfg.project})`;
+            const addLineBtnSelector = `${projectCardSelector} button:contains(Add Line Item)`;
+
+            // Click on the Add Line button
+            await page.waitForJqSelector(addLineBtnSelector);
+            await page.triggerJqEvent(addLineBtnSelector, 'click');
+            await page.screenshot({path: '03 Add Line clicked.png'});
+
+            // Wait until the 'Select time category' dropdown appears
+            const categoryDropdownSelector = `${projectCardSelector} .select2-container.project-category`;
+            // Click on the 'Select time category' dropdown, and get the projectId
+            await page.waitForJqSelector(`${categoryDropdownSelector} .select2-arrow`);
+            await page.triggerJqEvent(`${categoryDropdownSelector} .select2-arrow`, 'mousedown');
+
+            // Wait until the dropdown opens
+            await page.waitForSelector('ul.select2-results li.select2-result-selectable');
+            await page.screenshot({path: '04 Select category dropdown opened.png'});
+            // Click on the configured time category
+            await page.triggerJqEvent(`ul.select2-results li.select2-result-selectable div:contains(${cfg.category})`, 'mouseup');
+            await page.screenshot({path: '04 Select category dropdown opened.png'});
+            // Start request interception to spoof hours
+            await page.setRequestInterception(true);
+            page.on('request', interceptedRequest => {
+                if (interceptedRequest.url().includes('/timecardprocessor.do?sysparm_name=addToTimesheet&sysparm_processor=TimeCardPortalService')){
+                    console.log('Intercepted /timecardprocessor.do');
+                    interceptedRequest.continue({
+                        postData: transformAddTimecardPostData(interceptedRequest.postData(), hourDifferences)
+                    });
+                } else {
+                    interceptedRequest.continue();
+                }
+            });
+            // Click on the 'Add Time' button
+            await page.triggerJqEvent(`${projectCardSelector} button.btn-primary:contains(Add Time)`, 'click');
+            // Make sure the row was added
+            await page.waitForSelector(`.tc-row`);
+            await page.screenshot({path: '05 Timecard added.png'});
+        }
+
         console.log('Ready to submit!!');
         // await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
         // await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
