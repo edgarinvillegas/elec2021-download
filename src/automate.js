@@ -11,7 +11,8 @@ async function automate({ browser, page, cfg, credentials }){
     {
         // Some redirections might happen, so better to make sure that the username textbox exists
         await page.waitForSelector('#okta-signin-username');
-        await page.screenshot({path: '01 login-page.png'});
+        logger.log(`Logging in ${credentials.coxEmail}...`);
+        // await page.screenshot({path: '01 login-page.png'});
 
         // Now we're on the login page. Enter credentials
         await page.type('#okta-signin-username', credentials.coxEmail);
@@ -26,6 +27,7 @@ async function automate({ browser, page, cfg, credentials }){
         // This will go to another page, wait until it loads
         await page.waitForSelector('.navpage-layout');
 
+        logger.log(`Loading timesheet page...`);
         // The current page has the page we want as framed in. Let's go to it
         await page.goto('https://coxauto.service-now.com/time', {waitUntil: 'networkidle2'});
 
@@ -35,7 +37,8 @@ async function automate({ browser, page, cfg, credentials }){
     // Go to correct date
     {
         //************************************* Go temporarily to previous page
-        const targetDateTextStart = getWeekPickerText(targetDate);
+        const targetDateText = getWeekPickerText(targetDate);
+        logger.log(`Going to week "${targetDateText}"...`);
 
         const getCurrentDateText$ = () => page.getTextJq('.date-selector .date-range [role=heading]');
 
@@ -44,7 +47,7 @@ async function automate({ browser, page, cfg, credentials }){
             await page.click('.date-selector button.icon-chevron-left');
             await page.waitForJqSelector(`.date-selector:not(:contains(${dateText}))`)
         }
-        while( !(await getCurrentDateText$()).startsWith(targetDateTextStart) ){
+        while( !(await getCurrentDateText$()).startsWith(targetDateText) ){
             await weekBack$();
         }
     }
@@ -67,43 +70,49 @@ async function automate({ browser, page, cfg, credentials }){
             });
         }
 
-        async function getHourDifference$() {
+        // TODO: remove param
+        async function getHourDifference$(intendedHours) {
             // Get the total accumulated hours by day. Useful for validation. Won't be needed once we implement pre cleanup
             const actualTotalDailyHours = await getLoggedHours$()
             const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
             const actualTotalDailyHoursObj = {}, differences = {};
             days.forEach( (day, i) =>  {
                 actualTotalDailyHoursObj[day] = actualTotalDailyHours[i];
-                differences[day] = (cfg.defaultHours[day] || 0) - actualTotalDailyHoursObj[day];
+                differences[day] = (intendedHours[day] || 0) - actualTotalDailyHoursObj[day];
             });
             if(!Object.values(differences).every( h => h >= 0 )){
-                logger.log('Error. Intended hours: ', cfg.defaultHours, '\nCurrently logged: ', actualTotalDailyHoursObj, '.\nPlease submit your timesheet manually');
+                logger.log('Error. Intended hours: ', intendedHours, '\nCurrently logged: ', actualTotalDailyHoursObj, '.\nPlease submit your timesheet manually');
             }
             return differences;
         }
 
-        const hourDifferences = await getHourDifference$();
+        const intendedHours = cfg.defaultHours;
+        logger.log(`Filling timesheet...`);
+        const hourDifferences = await getHourDifference$(intendedHours);
         // If there's a negative difference, it means we cannot submit it. TODO: Add automatic timesheet wipe to avoid this
         if(Object.values(hourDifferences).some( h => h < 0 )) {
-            await page.screenshot({path: '06 Error - Times dont match.png'});
+            // await page.screenshot({path: '06 Error - Times dont match.png'});
+            // logger.log(`Cannot log ${intendedHours} because .\nPlease submit your timesheet manually`);
             process.exit(3);
         } else if (Object.values(hourDifferences).every( h => h === 0)) {
-            logger.log('Already logged desired hours. Skipping logging');
+            logger.log(`Already logged desired hours: ${intendedHours}. Skipping logging`);
         } else {
             // Just in case wait for the project cards container
             await page.waitForSelector('.cards-panel-body');
-            await page.screenshot({path: '02 final-page.png'});
+            // await page.screenshot({path: '02 final-page.png'});
 
             // Wait until we have the 'Add Line' button
+            logger.log(`Selecting project ${cfg.project}...`);
             const projectCardSelector = `.card:contains(${cfg.project})`;
             const addLineBtnSelector = `${projectCardSelector} button:contains(Add Line Item)`;
 
             // Click on the Add Line button
             await page.waitForJqSelector(addLineBtnSelector);
             await page.triggerJqEvent(addLineBtnSelector, 'click');
-            await page.screenshot({path: '03 Add Line clicked.png'});
+            // await page.screenshot({path: '03 Add Line clicked.png'});
 
             // Wait until the 'Select time category' dropdown appears
+            logger.log(`Selecting category ${cfg.category}...`);
             const categoryDropdownSelector = `${projectCardSelector} .select2-container.project-category`;
             // Click on the 'Select time category' dropdown, and get the projectId
             await page.waitForJqSelector(`${categoryDropdownSelector} .select2-arrow`);
@@ -111,15 +120,16 @@ async function automate({ browser, page, cfg, credentials }){
 
             // Wait until the dropdown opens
             await page.waitForSelector('ul.select2-results li.select2-result-selectable');
-            await page.screenshot({path: '04 Select category dropdown opened.png'});
+            // await page.screenshot({path: '04 Select category dropdown opened.png'});
             // Click on the configured time category
             await page.triggerJqEvent(`ul.select2-results li.select2-result-selectable div:contains(${cfg.category})`, 'mouseup');
             await page.screenshot({path: '04 Select category dropdown opened.png'});
             // Start request interception to spoof hours
+            logger.log(`Logging hours to have ${intendedHours}...`);
             await page.setRequestInterception(true);
             page.on('request', interceptedRequest => {
                 if (interceptedRequest.url().includes('/timecardprocessor.do?sysparm_name=addToTimesheet&sysparm_processor=TimeCardPortalService')){
-                    logger.log('Intercepted /timecardprocessor.do');
+                    // logger.log('Intercepted /timecardprocessor.do');
                     interceptedRequest.continue({
                         postData: transformAddTimecardPostData(interceptedRequest.postData(), hourDifferences)
                     });
@@ -131,16 +141,18 @@ async function automate({ browser, page, cfg, credentials }){
             await page.triggerJqEvent(`${projectCardSelector} button.btn-primary:contains(Add Time)`, 'click');
             // Make sure the row was added
             await page.waitForSelector(`.tc-row`);
-            await page.screenshot({path: '05 Timecard added.png'});
+            // await page.screenshot({path: '05 Timecard added.png'});
         }
 
-        logger.log('Ready to submit!!');
+        logger.log('Ready to submit...');
         // await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
         // await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
+        // logger.log('Submitted succesfully.');
         const finalScreenshot = '07 Submitted.png';
         await page.screenshot({path: finalScreenshot});
+        logger.log(`Sending emails...`);
         await sendEmail$(credentials.mojixEmail, credentials.mojixPassword, cfg.emailSettings, targetDate, [`./${finalScreenshot}`]);
-        logger.log('Done');
+        logger.log('SUCCESS.');
     }
     // await browser.close();
 };
