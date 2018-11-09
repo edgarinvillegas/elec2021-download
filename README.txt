@@ -12,6 +12,8 @@ npm install
 *** Executing ***
 node index.js
 
+This will create a config.json file. Edit it (see below) and rerun node index.js
+
 *** About config.json: ****
 EXAMPLE: (See comments inline)
 
