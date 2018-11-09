@@ -9,8 +9,8 @@ function sendMail$(options) {
     const send = gmailSend(options);
     return new Promise( (resolve, reject) => {
         send({}, function (err, res) {
-            console.log('Email attempt done. Err:', err, '; res:', res);
             if (err){
+                console.log('Error when sending email, err: ', err, '; res: ', res);
                 reject(err);
             } else {
                 resolve(res);

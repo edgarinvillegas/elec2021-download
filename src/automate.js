@@ -1,10 +1,11 @@
 const dateFns = require('date-fns');
 
+const logger = require('./lib/logger');
 const sendMail$ = require('./lib/sendMail');
 
 async function automate({ browser, page, cfg, credentials }){
     const targetDate = new Date();
-
+    logger.log('Going to https://coxauto.service-now.com/time...');
     await page.goto('https://coxauto.service-now.com/time', {waitUntil: 'networkidle2'});
     // Login
     {
@@ -53,7 +54,7 @@ async function automate({ browser, page, cfg, credentials }){
         //It can be PENDING, SUBMITED, PROCESSED
         const timesheetState = (await page.getTextJq('.tcp-header .ts-data:contains(State) .ts-val')).toUpperCase();
         if(timesheetState !== 'PENDING') {
-            console.log(`No need to submit timesheet "${getWeekPickerText(targetDate)}" because it's in ${timesheetState} state`);
+            logger.log(`No need to submit timesheet "${getWeekPickerText(targetDate)}" because it's in ${timesheetState} state`);
             process.exit(0);
         }
     }
@@ -76,7 +77,7 @@ async function automate({ browser, page, cfg, credentials }){
                 differences[day] = (cfg.defaultHours[day] || 0) - actualTotalDailyHoursObj[day];
             });
             if(!Object.values(differences).every( h => h >= 0 )){
-                console.log('Error. Intended hours: ', cfg.defaultHours, '\nCurrently logged: ', actualTotalDailyHoursObj, '.\nPlease submit your timesheet manually');
+                logger.log('Error. Intended hours: ', cfg.defaultHours, '\nCurrently logged: ', actualTotalDailyHoursObj, '.\nPlease submit your timesheet manually');
             }
             return differences;
         }
@@ -87,7 +88,7 @@ async function automate({ browser, page, cfg, credentials }){
             await page.screenshot({path: '06 Error - Times dont match.png'});
             process.exit(3);
         } else if (Object.values(hourDifferences).every( h => h === 0)) {
-            console.log('Already logged desired hours. Skipping logging');
+            logger.log('Already logged desired hours. Skipping logging');
         } else {
             // Just in case wait for the project cards container
             await page.waitForSelector('.cards-panel-body');
@@ -118,7 +119,7 @@ async function automate({ browser, page, cfg, credentials }){
             await page.setRequestInterception(true);
             page.on('request', interceptedRequest => {
                 if (interceptedRequest.url().includes('/timecardprocessor.do?sysparm_name=addToTimesheet&sysparm_processor=TimeCardPortalService')){
-                    console.log('Intercepted /timecardprocessor.do');
+                    logger.log('Intercepted /timecardprocessor.do');
                     interceptedRequest.continue({
                         postData: transformAddTimecardPostData(interceptedRequest.postData(), hourDifferences)
                     });
@@ -133,19 +134,19 @@ async function automate({ browser, page, cfg, credentials }){
             await page.screenshot({path: '05 Timecard added.png'});
         }
 
-        console.log('Ready to submit!!');
+        logger.log('Ready to submit!!');
         // await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
         // await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
         const finalScreenshot = '07 Submitted.png';
         await page.screenshot({path: finalScreenshot});
         await sendEmail$(credentials.mojixEmail, credentials.mojixPassword, cfg.emailSettings, targetDate, [`./${finalScreenshot}`]);
-        console.log('Done');
+        logger.log('Done');
     }
     // await browser.close();
 };
 
 function sendEmail$(mojixEmail, mojixPassword, emailSettings, targetDate, files) {
-    //console.log('emailSettings: ', emailSettings);
+    //logger.log('emailSettings: ', emailSettings);
     const saturdayDate = dateFns.format(dateFns.endOfWeek(targetDate), 'YYYY-MM-DD');
     return sendMail$({
         user: mojixEmail,
@@ -154,7 +155,7 @@ function sendEmail$(mojixEmail, mojixPassword, emailSettings, targetDate, files)
         cc: emailSettings.cc,
         bcc: emailSettings.bcc,            // almost any option of `nodemailer` will be passed to it
         subject: emailSettings.subjectTemplate.replace('{weekendDate}', saturdayDate),
-        text:    `Timesheet for ${saturdayDate} has been submitted succesfully.`,         // Plain text
+        text:    `TEST Timesheet for ${saturdayDate} has been submitted succesfully.`,         // Plain text
         //html:    '<b>html text</b>'            // HTML
         files: files,
     });
@@ -188,7 +189,7 @@ function transformAddTimecardPostData(originalPostData, hours) {
     Object.keys(hours).forEach( day => values.timecards[0][day] = String(hours[day]));
     // Encode back
     const valuesJsonStr = JSON.stringify(values);
-    // console.log('new Values', valuesJsonStr);
+    // logger.log('new Values', valuesJsonStr);
     return `values=${encodeURIComponent(valuesJsonStr)}`;
 }
 
