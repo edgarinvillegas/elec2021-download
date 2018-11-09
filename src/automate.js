@@ -202,7 +202,7 @@ function sendEmail$(mojixEmail, mojixPassword, emailSettings, targetDate, files)
         cc: emailSettings.cc,
         bcc: emailSettings.bcc,            // almost any option of `nodemailer` will be passed to it
         subject: emailSettings.subjectTemplate.replace('{weekendDate}', saturdayDate),
-        text:    `TEST Timesheet for ${saturdayDate} has been submitted succesfully.`,         // Plain text
+        text:    `Timesheet for ${saturdayDate} has been submitted succesfully.`,         // Plain text
         //html:    '<b>html text</b>'            // HTML
         files: files,
     });
