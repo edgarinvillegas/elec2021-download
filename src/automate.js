@@ -1,105 +1,9 @@
-const puppeteer = require('puppeteer');
 const dateFns = require('date-fns');
 const gmailSend = require('gmail-send');
 
-const readConfig = require('./readConfig');
-const extendPageWithJQuery = require('./extendPageWithJQuery');
-
-let cfg = null;
-let credentials = null;
-
-async function createBrowserAndPage() {
-    // Viewport && Window size
-    const width = 1200;
-    const height = 768;
-
-    const browser = await puppeteer.launch({
-        headless: false,
-        args: [
-            `--window-size=${ width },${ height }`
-        ],
-    });
-
-    const page = extendPageWithJQuery(await browser.newPage());
-    // Initial page
-    await page.setViewport({width, height});
-    return { page, browser };
-}
-
-function transformAddTimecardPostData(originalPostData, hours) {
-    //Decode originalPostData
-    const urlEncodedValuesComponent = originalPostData.split('values=')[1];
-    const values = JSON.parse(decodeURIComponent(urlEncodedValuesComponent));
-    /*
-    values looks like:
-    {
-        "timecards": [
-            {
-                "monday": "8",
-                "tuesday": "8",
-                "wednesday": "8",
-                "thursday": "8",
-                "friday": "8",
-                "time_sheet": "37274231db61ab40b94169c3ca961995",
-                "category": "task_work",
-                "task": "e0dfbc03db2cef406062dff648961958",
-                "project_time_category": "9e7e8b024f20cf0027ac04c85210c702"
-            }
-        ],
-        "timesheetId": "37274231db61ab40b94169c3ca961995",
-        "action": "quick_add"
-    }
-    */
-    //Update each day hours based on the config. It modifies values
-    Object.keys(hours).forEach( day => values.timecards[0][day] = String(hours[day]));
-    // Encode back
-    const valuesJsonStr = JSON.stringify(values);
-    // console.log('new Values', valuesJsonStr);
-    return `values=${encodeURIComponent(valuesJsonStr)}`;
-}
-
-function getWeekPickerText(date = new Date()){
-    const startDate = dateFns.startOfWeek(date);
-    const endDate = dateFns.endOfWeek(date);
-    const [startYear, startMonth, startDay] = dateFns.format(startDate, 'YYYY MMMM D').split(' ');
-    const [endYear, endMonth, endDay] = dateFns.format(endDate, 'YYYY MMMM D').split(' ');
-    /*
-    * 3 scenarios to support:
-    * 18 - 24 November 2018
-    * 25 November - 1 December 2018
-    * 30 December 2018 - 5 January 2019
-    * */
-    const startMonthUI = startMonth === endMonth ? '' : `${startMonth} `;
-    const startYearUI = startYear === endYear ? '': `${startYear} `;
-    return `${startDay} ${startMonthUI}${startYearUI}- ${endDay} ${endMonth} ${endYear}`;
-}
-
-function sendEmail(files) {
-    console.log('emailSettings: ', cfg.emailSettings);
-    const send = gmailSend({
-        user: credentials.mojixEmail,
-        pass: credentials.mojixPassword,
-        // pass: credentials.pass,                  // Application-specific password
-        to:   cfg.emailSettings.to,
-        bcc: cfg.emailSettings.bcc,            // almost any option of `nodemailer` will be passed to it
-        subject: cfg.emailSettings.subjectTemplate,
-        text:    'funciona!!!',         // Plain text
-        //html:    '<b>html text</b>'            // HTML
-        files: files,
-    });
-    send({}, function (err, res) {
-        console.log('Email attemp done. Err:', err, '; res:', res);
-    });
-}
-
-async function automate(){
+async function automate({ browser, page, cfg, credentials }){
     const targetDate = new Date();
-    // Load configuration from file.
-    cfg = readConfig();
-    credentials = cfg.credentials;
-    console.log(credentials);
-    // Load the page
-    const { page, browser } = await createBrowserAndPage();
+
     await page.goto('https://coxauto.service-now.com/time', {waitUntil: 'networkidle2'});
     // Login
     {
@@ -233,10 +137,84 @@ async function automate(){
         // await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
         const finalScreenshot = '07 Submitted.png';
         await page.screenshot({path: finalScreenshot});
-        sendEmail([`./${finalScreenshot}`]);
+        await sendEmail(credentials.mojixEmail, credentials.mojixPassword, cfg.emailSettings, [`./${finalScreenshot}`]);
         console.log('Done');
     }
     // await browser.close();
 };
+
+function sendEmail(mojixEmail, mojixPassword, emailSettings, targetDate, files) {
+    //console.log('emailSettings: ', emailSettings);
+    const saturdayDate = dateFns.format(dateFns.endOfWeek(targetDate), 'YYYY-MM-DD');
+    const send = gmailSend({
+        user: mojixEmail,
+        pass: mojixPassword,
+        // pass: credentials.pass,                  // Application-specific password
+        to:   emailSettings.to,
+        bcc: emailSettings.bcc,            // almost any option of `nodemailer` will be passed to it
+        subject: emailSettings.subjectTemplate.replace('{weekendDate}', saturdayDate),
+        text:    'funciona!!!',         // Plain text
+        //html:    '<b>html text</b>'            // HTML
+        files: files,
+    });
+    return new Promise( (resolve, reject) => {
+        send({}, function (err, res) {
+            console.log('Email attemp done. Err:', err, '; res:', res);
+            if (err){
+               reject(err);
+            } else {
+               resolve(res);
+            }
+        });
+    })
+}
+
+function transformAddTimecardPostData(originalPostData, hours) {
+    //Decode originalPostData
+    const urlEncodedValuesComponent = originalPostData.split('values=')[1];
+    const values = JSON.parse(decodeURIComponent(urlEncodedValuesComponent));
+    /*
+    values looks like:
+    {
+        "timecards": [
+            {
+                "monday": "8",
+                "tuesday": "8",
+                "wednesday": "8",
+                "thursday": "8",
+                "friday": "8",
+                "time_sheet": "37274231db61ab40b94169c3ca961995",
+                "category": "task_work",
+                "task": "e0dfbc03db2cef406062dff648961958",
+                "project_time_category": "9e7e8b024f20cf0027ac04c85210c702"
+            }
+        ],
+        "timesheetId": "37274231db61ab40b94169c3ca961995",
+        "action": "quick_add"
+    }
+    */
+    //Update each day hours based on the config. It modifies values
+    Object.keys(hours).forEach( day => values.timecards[0][day] = String(hours[day]));
+    // Encode back
+    const valuesJsonStr = JSON.stringify(values);
+    // console.log('new Values', valuesJsonStr);
+    return `values=${encodeURIComponent(valuesJsonStr)}`;
+}
+
+function getWeekPickerText(date = new Date()){
+    const startDate = dateFns.startOfWeek(date);
+    const endDate = dateFns.endOfWeek(date);
+    const [startYear, startMonth, startDay] = dateFns.format(startDate, 'YYYY MMMM D').split(' ');
+    const [endYear, endMonth, endDay] = dateFns.format(endDate, 'YYYY MMMM D').split(' ');
+    /*
+    * 3 scenarios to support:
+    * 18 - 24 November 2018
+    * 25 November - 1 December 2018
+    * 30 December 2018 - 5 January 2019
+    * */
+    const startMonthUI = startMonth === endMonth ? '' : `${startMonth} `;
+    const startYearUI = startYear === endYear ? '': `${startYear} `;
+    return `${startDay} ${startMonthUI}${startYearUI}- ${endDay} ${endMonth} ${endYear}`;
+}
 
 module.exports = automate;
