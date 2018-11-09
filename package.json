@@ -1,6 +1,6 @@
 {
   "name": "cox-timesheet",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Autofiller for Cox timesheet",
   "main": "index.js",
   "repository": "https://github.com/edgarinvillegas/cox-timesheet",

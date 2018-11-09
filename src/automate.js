@@ -147,14 +147,16 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
             // Click on the 'Add Time' button
             await page.triggerJqEvent(`${projectCardSelector} button.btn-primary:contains(Add Time)`, 'click');
             // Make sure the row was added
-            await page.waitForSelector(`.tc-row`);
+            await page.waitForSelector(`.tc-row:contains(${cfg.project})`);
             // await page.screenshot({path: '05 Timecard added.png'});
         }
 
         logger.log('Ready to submit...');
-        // await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
-        // await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
-        // logger.log('Submitted succesfully.');
+
+        await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
+        await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
+        logger.log('Submitted succesfully.');
+        //
         const finalScreenshot = 'submitted.png';
         await page.screenshot({path: finalScreenshot});
         logger.log(`Sending emails...`);
