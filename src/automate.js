@@ -147,7 +147,7 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
             // Click on the 'Add Time' button
             await page.triggerJqEvent(`${projectCardSelector} button.btn-primary:contains(Add Time)`, 'click');
             // Make sure the row was added
-            await page.waitForSelector(`.tc-row:contains(${cfg.project})`);
+            await page.waitForJqSelector(`.tc-row:contains(${cfg.project})`);
             // await page.screenshot({path: '05 Timecard added.png'});
         }
 
