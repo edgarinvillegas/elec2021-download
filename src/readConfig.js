@@ -46,7 +46,7 @@ function readConfig() {
     }
     // nconf.file({file: conf_file});
     nconf.argv()
-        .env()
+        // .env()
         .file({ file: conf_file })
         .defaults(conf_defaults);
 

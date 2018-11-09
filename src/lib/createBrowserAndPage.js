@@ -2,9 +2,9 @@ const puppeteer = require('puppeteer');
 
 const extendPageWithJQuery = require('./extendPageWithJQuery');
 
-async function createBrowserAndPage(width = 1200, height = 768) {
+async function createBrowserAndPage(headless = true, width = 1200, height = 768) {
     const browser = await puppeteer.launch({
-        headless: false,
+        headless: headless,
         args: [
             `--window-size=${ width },${ height }`
         ],

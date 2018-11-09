@@ -3,8 +3,7 @@ const dateFns = require('date-fns');
 const logger = require('./lib/logger');
 const sendMail$ = require('./lib/sendMail');
 
-async function automate({ browser, page, cfg, credentials }){
-    const targetDate = new Date();
+async function automate({ page, cfg, credentials, targetDate = new Date() }){
     logger.log('Going to https://coxauto.service-now.com/time...');
     await page.goto('https://coxauto.service-now.com/time', {waitUntil: 'networkidle2'});
     // Login
@@ -57,8 +56,8 @@ async function automate({ browser, page, cfg, credentials }){
         //It can be PENDING, SUBMITED, PROCESSED
         const timesheetState = (await page.getTextJq('.tcp-header .ts-data:contains(State) .ts-val')).toUpperCase();
         if(timesheetState !== 'PENDING') {
-            logger.log(`No need to submit timesheet "${getWeekPickerText(targetDate)}" because it's in ${timesheetState} state`);
-            process.exit(0);
+            // TODO: analyze if this should throw
+            throw new Error(`No need to submit timesheet "${getWeekPickerText(targetDate)}" because it's in ${timesheetState} state`);
         }
     }
 
@@ -80,8 +79,8 @@ async function automate({ browser, page, cfg, credentials }){
                 actualTotalDailyHoursObj[day] = actualTotalDailyHours[i];
                 differences[day] = (intendedHours[day] || 0) - actualTotalDailyHoursObj[day];
             });
-            if(!Object.values(differences).every( h => h >= 0 )){
-                logger.log('Error. Intended hours: ', intendedHours, '\nCurrently logged: ', actualTotalDailyHoursObj, '.\nPlease submit your timesheet manually');
+            if(Object.values(differences).some( h => h < 0 )){
+                logger.log('Error. Intended hours: ', JSON.stringify(intendedHours), '\nCurrently logged: ', JSON.stringify(actualTotalDailyHoursObj), '.\nPlease submit your timesheet manually');
             }
             return differences;
         }
@@ -92,8 +91,7 @@ async function automate({ browser, page, cfg, credentials }){
         // If there's a negative difference, it means we cannot submit it. TODO: Add automatic timesheet wipe to avoid this
         if(Object.values(hourDifferences).some( h => h < 0 )) {
             // await page.screenshot({path: '06 Error - Times dont match.png'});
-            // logger.log(`Cannot log ${intendedHours} because .\nPlease submit your timesheet manually`);
-            process.exit(3);
+            throw new Error(`Cannot log configured hours`);
         } else if (Object.values(hourDifferences).every( h => h === 0)) {
             logger.log(`Already logged desired hours: ${intendedHours}. Skipping logging`);
         } else {
@@ -125,7 +123,7 @@ async function automate({ browser, page, cfg, credentials }){
             await page.triggerJqEvent(`ul.select2-results li.select2-result-selectable div:contains(${cfg.category})`, 'mouseup');
             await page.screenshot({path: '04 Select category dropdown opened.png'});
             // Start request interception to spoof hours
-            logger.log(`Logging hours to have ${intendedHours}...`);
+            logger.log(`Logging hours to have ${JSON.stringify(intendedHours)}...`);
             await page.setRequestInterception(true);
             page.on('request', interceptedRequest => {
                 if (interceptedRequest.url().includes('/timecardprocessor.do?sysparm_name=addToTimesheet&sysparm_processor=TimeCardPortalService')){
@@ -148,13 +146,12 @@ async function automate({ browser, page, cfg, credentials }){
         // await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
         // await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
         // logger.log('Submitted succesfully.');
-        const finalScreenshot = '07 Submitted.png';
+        const finalScreenshot = 'submitted.png';
         await page.screenshot({path: finalScreenshot});
         logger.log(`Sending emails...`);
         await sendEmail$(credentials.mojixEmail, credentials.mojixPassword, cfg.emailSettings, targetDate, [`./${finalScreenshot}`]);
         logger.log('SUCCESS.');
     }
-    // await browser.close();
 };
 
 function sendEmail$(mojixEmail, mojixPassword, emailSettings, targetDate, files) {
