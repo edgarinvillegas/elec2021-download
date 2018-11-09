@@ -1,5 +1,6 @@
 const dateFns = require('date-fns');
-const gmailSend = require('gmail-send');
+
+const sendMail$ = require('./lib/sendMail');
 
 async function automate({ browser, page, cfg, credentials }){
     const targetDate = new Date();
@@ -137,36 +138,26 @@ async function automate({ browser, page, cfg, credentials }){
         // await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
         const finalScreenshot = '07 Submitted.png';
         await page.screenshot({path: finalScreenshot});
-        await sendEmail(credentials.mojixEmail, credentials.mojixPassword, cfg.emailSettings, [`./${finalScreenshot}`]);
+        await sendEmail$(credentials.mojixEmail, credentials.mojixPassword, cfg.emailSettings, targetDate, [`./${finalScreenshot}`]);
         console.log('Done');
     }
     // await browser.close();
 };
 
-function sendEmail(mojixEmail, mojixPassword, emailSettings, targetDate, files) {
+function sendEmail$(mojixEmail, mojixPassword, emailSettings, targetDate, files) {
     //console.log('emailSettings: ', emailSettings);
     const saturdayDate = dateFns.format(dateFns.endOfWeek(targetDate), 'YYYY-MM-DD');
-    const send = gmailSend({
+    return sendMail$({
         user: mojixEmail,
         pass: mojixPassword,
-        // pass: credentials.pass,                  // Application-specific password
         to:   emailSettings.to,
+        cc: emailSettings.cc,
         bcc: emailSettings.bcc,            // almost any option of `nodemailer` will be passed to it
         subject: emailSettings.subjectTemplate.replace('{weekendDate}', saturdayDate),
-        text:    'funciona!!!',         // Plain text
+        text:    `Timesheet for ${saturdayDate} has been submitted succesfully.`,         // Plain text
         //html:    '<b>html text</b>'            // HTML
         files: files,
     });
-    return new Promise( (resolve, reject) => {
-        send({}, function (err, res) {
-            console.log('Email attemp done. Err:', err, '; res:', res);
-            if (err){
-               reject(err);
-            } else {
-               resolve(res);
-            }
-        });
-    })
 }
 
 function transformAddTimecardPostData(originalPostData, hours) {
