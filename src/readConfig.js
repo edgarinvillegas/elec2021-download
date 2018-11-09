@@ -26,17 +26,17 @@ function readConfig() {
             "thursday": 8,
             "friday": 8
         },
-        /*"exceptionalHours": {
+        "exceptionalHours": {
             "2018-11-01": 0,
             "2017-12-31:2018-01-01": 0,
-        },*/
+        },
         "emailSettings": {
             "to": ["cox_report@mojix.com"],
             "cc": ["LEAD_NAME@mojix.com"],
             "bcc": [],
             "subjectTemplate": "{%weekend_date} 1234 PEREZ"
         }
-    }
+    };
 
     const conf_file ='./config.json';
     if( ! fs.existsSync(conf_file) ) {

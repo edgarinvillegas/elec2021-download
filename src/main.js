@@ -20,7 +20,8 @@ async function main(){
         });
         await browser.close();
     } catch (exc) {
-        await handleException(exc, browser, page, targetDate, cfg, credentials, headless);
+        const sendExceptionEmail = true;    // Set to false during development.
+        await handleException(exc, browser, page, targetDate, cfg, credentials, headless, sendExceptionEmail);
     }
 }
 

@@ -3,13 +3,15 @@ const dateFns = require('date-fns');
 const sendMail$ = require('./lib/sendMail');
 const logger = require('./lib/logger');
 
-async function handleException(exc, browser, page, targetDate, cfg, credentials, headless = true ){
+async function handleException(exc, browser, page, targetDate, cfg, credentials, headless, sendEmail = true ){
     console.log(exc.message);
     const screenshotFile = 'error.png';     // TODO: find out if ./ can be added
     await page.screenshot({ path: screenshotFile });
     logger.log(`FAILURE`);
-    await sendExceptionMail$(exc, targetDate, cfg, credentials, `./${screenshotFile}`);
-    console.log(`Sent error email to ${credentials.coxEmail}. Check ${screenshotFile}`);
+    if(sendEmail) {
+        await sendExceptionMail$(exc, targetDate, cfg, credentials, `./${screenshotFile}`);
+        console.log(`Sent error email to ${credentials.coxEmail}. Check ${screenshotFile}`);
+    }
     if(headless) {
         await browser.close();
         process.exit(exc.errorCode || 1);
@@ -21,8 +23,8 @@ function sendExceptionMail$(exc, targetDate, cfg, credentials, screenshotFile) {
     const { mojixEmail, mojixPassword, coxEmail } = credentials;    // Store credentials before deletion.
     const cfgClone = JSON.parse(JSON.stringify(cfg));
     if(cfgClone.credentials) {
-        cfgClone.credentials.mojixPassword = '***'
-        cfgClone.credentials.coxPassword = '***'
+        cfgClone.credentials.mojixPassword = '***';
+        cfgClone.credentials.coxPassword = '***';
     }
     return sendMail$({
         user: mojixEmail,

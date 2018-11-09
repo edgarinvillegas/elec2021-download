@@ -1,7 +1,9 @@
 const dateFns = require('date-fns');
 
+const weekdayNames = require('./constants').weekdayNames;
 const logger = require('./lib/logger');
 const sendMail$ = require('./lib/sendMail');
+
 
 async function automate({ page, cfg, credentials, targetDate = new Date() }){
     logger.log('Going to https://coxauto.service-now.com/time...');
@@ -72,10 +74,9 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
         // TODO: remove param
         async function getHourDifference$(intendedHours) {
             // Get the total accumulated hours by day. Useful for validation. Won't be needed once we implement pre cleanup
-            const actualTotalDailyHours = await getLoggedHours$()
-            const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const actualTotalDailyHours = await getLoggedHours$();
             const actualTotalDailyHoursObj = {}, differences = {};
-            days.forEach( (day, i) =>  {
+            weekdayNames.forEach( (day, i) =>  {
                 actualTotalDailyHoursObj[day] = actualTotalDailyHours[i];
                 differences[day] = (intendedHours[day] || 0) - actualTotalDailyHoursObj[day];
             });
@@ -85,7 +86,15 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
             return differences;
         }
 
-        const intendedHours = cfg.defaultHours;
+        function getIntendedHours() {
+            const intendedHours = {};
+            weekdayNames.forEach( (day, i) =>  {
+                intendedHours[day] = getDayIntendedHours(targetDate, i, cfg.defaultHours[day], cfg.exceptionalHours);
+            });
+            return intendedHours;
+        }
+        const intendedHours = getIntendedHours();
+
         logger.log(`Filling timesheet...`);
         const hourDifferences = await getHourDifference$(intendedHours);
         // If there's a negative difference, it means we cannot submit it. TODO: Add automatic timesheet wipe to avoid this
@@ -93,7 +102,7 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
             // await page.screenshot({path: '06 Error - Times dont match.png'});
             throw new Error(`Cannot log configured hours`);
         } else if (Object.values(hourDifferences).every( h => h === 0)) {
-            logger.log(`Already logged desired hours: ${intendedHours}. Skipping logging`);
+            logger.log(`Already logged desired hours: ${JSON.stringify(intendedHours)}. Skipping logging`);
         } else {
             // Just in case wait for the project cards container
             await page.waitForSelector('.cards-panel-body');
@@ -121,7 +130,7 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
             // await page.screenshot({path: '04 Select category dropdown opened.png'});
             // Click on the configured time category
             await page.triggerJqEvent(`ul.select2-results li.select2-result-selectable div:contains(${cfg.category})`, 'mouseup');
-            await page.screenshot({path: '04 Select category dropdown opened.png'});
+            // await page.screenshot({path: '04 Select category dropdown opened.png'});
             // Start request interception to spoof hours
             logger.log(`Logging hours to have ${JSON.stringify(intendedHours)}...`);
             await page.setRequestInterception(true);
@@ -152,7 +161,34 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
         await sendEmail$(credentials.mojixEmail, credentials.mojixPassword, cfg.emailSettings, targetDate, [`./${finalScreenshot}`]);
         logger.log('SUCCESS.');
     }
-};
+}
+
+/**
+ * Returns the weekday of the targetDate's week, formatted
+ * For example, if tomorrow is Thursday, Nov 9, 2018
+ * then getFormattedDateByWeekday(new Date(), 3) will return '2018-11-09' (3 = thursday)
+ * @param targetDate A date of the week
+ * @param weekday 0 for sunday, 1 for monday, etc
+ * @returns {string}
+ */
+function getFormattedDateByWeekday(targetDate, weekday) {
+    return dateFns.format(dateFns.startOfWeek(targetDate, {weekStartsOn: weekday}), 'YYYY-MM-DD');
+}
+
+function getDayIntendedHours(targetDate, weekday, hdefault, exceptionalHours) {
+    if(hdefault === undefined) return 0;    // To return 0 on weekends
+    const formattedDate = getFormattedDateByWeekday(targetDate, weekday);
+    let ret = hdefault;
+    for(let dateRange in exceptionalHours){
+        const value = exceptionalHours[dateRange];
+        const startDate = dateRange.split(':')[0].trim();
+        const endDate = (dateRange.split(':')[1] || startDate).trim();
+        if(startDate <= formattedDate && formattedDate <= endDate) {
+            ret = value;
+        }
+    }
+    return ret;
+}
 
 function sendEmail$(mojixEmail, mojixPassword, emailSettings, targetDate, files) {
     //logger.log('emailSettings: ', emailSettings);
