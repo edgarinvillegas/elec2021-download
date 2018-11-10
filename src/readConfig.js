@@ -34,7 +34,7 @@ function readConfig() {
             "to": ["cox_report@mojix.com"],
             "cc": ["LEAD_NAME@mojix.com"],
             "bcc": [],
-            "subjectTemplate": "{%weekend_date} 1234 PEREZ"
+            "subjectTemplate": "{weekendDate} 1234 PEREZ"
         }
     };
 
