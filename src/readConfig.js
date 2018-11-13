@@ -22,9 +22,29 @@ function readConfig() {
     nconf.argv()
         // .env()
         .file({ file: conf_file })
-        .defaults(conf_defaults);
+        // .defaults(conf_defaults);
 
-    return nconf.get(null);
+    return  nconf.get(null);
 }
 
-module.exports = readConfig;
+function getExecConfig (rawCfg, targetDate) {
+    const rawCfgClone = JSON.parse(JSON.stringify(rawCfg));
+    const execConfig = rawCfgClone.defaults;
+    // TODO: apply weekOverrides
+
+    // Normalize projectHours
+    const projectHours = execConfig.projectHours;
+    for(const prj in projectHours) {
+        if(projectHours[prj].length) {
+            projectHours[prj] = {
+                notes: '',      // TODO: Calculate notes
+                hours: projectHours[prj]
+            }
+        } else {
+            projectHours[prj].notes = projectHours[prj].notes || '';
+        }
+    }
+    return execConfig;
+}
+
+module.exports = { readConfig, getExecConfig };

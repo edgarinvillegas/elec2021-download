@@ -5,23 +5,26 @@
     "mojixEmail": "YOUR_NAME@mojix.com",
     "mojixPassword": ""
   },
-  "project": "PRJ0000000",
-  "category": "Development",
-  "defaultHours": {
-    "monday": 8,
-    "tuesday": 8,
-    "wednesday": 8,
-    "thursday": 8,
-    "friday": 8
+  "defaults": {
+    "emailSettings": {
+      "to": ["cox_report@mojix.com"],
+      "cc": ["LEAD_NAME@mojix.com"],
+      "bcc": [],
+      "subjectTemplate": "{weekendDate} 1234 PEREZ"
+    },
+    "workingDays": ["monday", "tuesday", "wednesday", "thursday", "friday" ],
+    "notes": ["", "", "", "", "" ],
+    "sendEmailIfAlreadySubmitted": false,
+    "projectHours": {
+      "PRJ0010000-DEV": [ 2, 2, 2, 2, 2 ],
+      "PRJ0020000-BUG": [ 3, 3, 3, 3, 3 ],
+      "PRJ0020000-SUP": [ 3, 3, 3, 3, 3 ]
+    },
+    "weekDelta": 0
   },
-  "exceptionalHours": {
-    "2018-11-01": 0,
-    "2017-12-31:2018-01-01": 0,
-  },
-  "emailSettings": {
-    "to": ["cox_report@mojix.com"],
-    "cc": ["LEAD_NAME@mojix.com"],
-    "bcc": [],
-    "subjectTemplate": "{weekendDate} 1234 PEREZ"
+  "weekOverrides": {
+    "2018-11-03": {
+      "notes": [ "", "", "", "", "Holiday - All Saints" ]
+    }
   }
 }

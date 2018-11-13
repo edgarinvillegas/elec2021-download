@@ -1,27 +1,30 @@
 const automate = require('./automate');
-const readConfig = require('./readConfig');
+const readConfig = require('./readConfig').readConfig;
+const getExecConfig = require('./readConfig').getExecConfig;
 const createBrowserAndPage = require('./lib/createBrowserAndPage');
 const handleException = require('./exceptionHandler');
 
 async function main(){
     // Load configuration from file.
-    const cfg = readConfig();
-    const credentials = cfg.credentials;
+    const rawCfg = readConfig();
+    const credentials = rawCfg.credentials;
     const headless = true;
     // Load the page
     const { page, browser } = await createBrowserAndPage(headless);
     const targetDate = new Date();
+    const execConfig = getExecConfig(rawCfg, targetDate);
+    // console.log(JSON.stringify(execConfig, null, 2));
     try {
         await automate({
             page,
-            cfg,
+            cfg: execConfig,
             credentials,
             targetDate
         });
         await browser.close();
     } catch (exc) {
         const sendExceptionEmail = true;    // Set to false during development.
-        await handleException(exc, browser, page, targetDate, cfg, credentials, headless, sendExceptionEmail);
+        await handleException(exc, browser, page, targetDate, rawCfg, credentials, headless, sendExceptionEmail);
     }
 }
 
