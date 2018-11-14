@@ -65,6 +65,7 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
 
     // Timesheet filling
     {
+        /*
         async function getLoggedHours$() {
             return await page.evaluate(() => {
                 return window.jQuery('#cal-container-1 .cal-container-4').map( (i, e) => parseInt($(e).text().trim()) ).get();
@@ -75,26 +76,18 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
         if(loggedHours.some(h => h > 0)) {
             throw new Error('Cannot log. Timesheet already logged with totals: ', JSON.stringify(loggedHours));
         }
-
-        /*function getIntendedHours() {
-            const intendedHours = {};
-            weekdayNames.forEach( (day, i) =>  {
-                intendedHours[day] = getDayIntendedHours(targetDate, i, cfg.defaultHours[day], cfg.exceptionalHours);
-            });
-            return intendedHours;
-        }
-        const intendedHours = getIntendedHours();*/
-        // function isAlreadyLogged()
-
+        */
 
         logger.log(`Filling timesheet...`);
         // Just in case wait for the project cards container
         await page.waitForSelector('.cards-panel-body');
         await page.waitForSelector('#tc-grid');
 
-        let auxIntendedHours = null;
+        // Aux variables for the request interceptor closure
+        let auxHoursToLog = null;
         let auxNotes = null;
 
+        // Set the request interceptor. TODO: Make this work inside logRow
         await page.setRequestInterception(true);
         page.on('request', interceptedRequest => {
             // console.log('INTERCEPTING REQUEST...');
@@ -102,7 +95,7 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
                 // console.log('Intercepted for ', auxIntendedHours, auxNotes)
                 // logger.log('Intercepted /timecardprocessor.do');
                 interceptedRequest.continue({
-                    postData: transformAddTimecardPostData(interceptedRequest.postData(), auxIntendedHours, auxNotes)
+                    postData: transformAddTimecardPostData(interceptedRequest.postData(), auxHoursToLog, auxNotes)
                 });
             } else {
                 interceptedRequest.continue();
@@ -110,6 +103,7 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
         });
 
         for(const prjKey in cfg.projectHours) {
+            logger.log(`--Processing row ${prjKey}...`);
             const projectId = prjKey.split('/')[0].trim();
             const categoryCode = prjKey.split('/')[1].trim();
             const categoryLabel = [
@@ -118,35 +112,33 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
                 'Bug Fixes',
                 'Maintenance and Support'
             ].find( label =>  label.toUpperCase().startsWith(categoryCode)) || 'Development';
-            /*const intendedHours = {
-                monday: 4,
-                tuesday: 4,
-                wednesday: 4,
-                thursday: 4,
-                friday: 4
-            };*/
             const projectObj = cfg.projectHours[prjKey];
             const intendedHours = {};
             cfg.workingDays.forEach( (day, i) => {
                 intendedHours[day] = projectObj.hours[i];
             });
-            auxIntendedHours = intendedHours;
-            auxNotes = projectObj.notes;
-            await logRow(page, projectId, categoryLabel, intendedHours, projectObj.notes);
+            logger.log(`Attempting to log ${JSON.stringify(intendedHours)}`);
+            // await page.waitForJqSelector(`#tc-grid .tc-row:contains(${projectId}):contains(${categoryLabel})`);
+            const rowAlreadyLoggedHours = await getRowAlreadyLoggedHours(page, projectId, categoryLabel);
+            const remainingHours = {};
+            weekdayNames.forEach( (day, i) => {
+                remainingHours[day] = (intendedHours[day] || 0) - rowAlreadyLoggedHours[i];
+            });
+            const notes = projectObj.notes
+
+            // These are just aux variables for the request interception closure
+            auxHoursToLog = remainingHours;
+            auxNotes = notes;
+
+            if(Object.values(remainingHours).some( h => h > 0)) {
+                if(rowAlreadyLoggedHours.some( h => h > 0)){
+                    logger.log(`Hours already logged: ${JSON.stringify(rowAlreadyLoggedHours)}. Logging remaining: ${JSON.stringify(remainingHours)}...`);
+                }
+                await logRow(page, projectId, categoryLabel, remainingHours, notes);
+            } else {
+                logger.log(`Desired hours were already logged for ${projectId} / ${categoryLabel}. Skipping`);
+            }
         }
-
-
-
-        /*const hourDifferences = await getHourDifference$(intendedHours);
-        // If there's a negative difference, it means we cannot submit it. TODO: Add automatic timesheet wipe to avoid this
-        if(Object.values(hourDifferences).some( h => h < 0 )) {
-            // await page.screenshot({path: '06 Error - Times dont match.png'});
-            throw new Error(`Cannot log configured hours`);
-        } else if (Object.values(hourDifferences).every( h => h === 0)) {
-            logger.log(`Already logged desired hours: ${JSON.stringify(intendedHours)}. Skipping logging`);
-        } else {
-
-        }*/
 
         logger.log('Ready to submit...');
         return;
@@ -161,6 +153,18 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
         await sendEmail$(credentials.mojixEmail, credentials.mojixPassword, cfg.emailSettings, targetDate, [`./${finalScreenshot}`]);
         logger.log('SUCCESS.');
     }
+}
+
+async function getRowAlreadyLoggedHours(page, projectId, categoryLabel) {
+    //await page.waitForJqSelector(`#tc-grid .tc-row:contains(${projectId}):contains(${categoryLabel})`);
+    const alreadyLoggedHours = await page.evaluate((projectId, categoryLabel, weekdayNames) => {
+        return window.jQuery(`#tc-grid .tc-row:contains(${projectId}):contains(${categoryLabel}) td`)
+            .filter( (i,e) => weekdayNames.indexOf($(e).attr('data-field')) >= 0 )     // Get only the weekday columns
+            .map( (i, e) => Number($(e).text()) )   // Get the cell contents as number
+            .get()
+        ;
+    }, projectId, categoryLabel, weekdayNames);
+    return alreadyLoggedHours.length > 0 ? alreadyLoggedHours : weekdayNames.map( () => 0 );
 }
 
 function getRowJq($, projectId, categoryLabel) {}
