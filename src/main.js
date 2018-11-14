@@ -1,8 +1,10 @@
-const automate = require('./automate');
 const readConfig = require('./readConfig').readConfig;
 const getExecConfig = require('./readConfig').getExecConfig;
 const createBrowserAndPage = require('./lib/createBrowserAndPage');
 const handleException = require('./exceptionHandler');
+
+const login = require('./automate/login');
+const fillTimesheet = require('./automate/fillTimesheet');
 
 async function main(){
     // Load configuration from file.
@@ -15,7 +17,8 @@ async function main(){
     const execConfig = getExecConfig(rawCfg, targetDate);
     // console.log(JSON.stringify(execConfig, null, 2));
     try {
-        await automate({
+        await login(page, credentials.coxEmail, credentials.coxPassword);
+        await fillTimesheet({
             page,
             cfg: execConfig,
             credentials,

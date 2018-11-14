@@ -1,43 +1,12 @@
 const dateFns = require('date-fns');
 
-const weekdayNames = require('./constants').weekdayNames;
-const logger = require('./lib/logger');
-const sendMail$ = require('./lib/sendMail');
+const weekdayNames = require('../constants').weekdayNames;
+const logger = require('../lib/logger');
+const sendMail$ = require('../lib/sendMail');
 
-
-async function automate({ page, cfg, credentials, targetDate = new Date() }){
-    logger.log('Going to https://coxauto.service-now.com/time...');
-    await page.goto('https://coxauto.service-now.com/time', {waitUntil: 'networkidle2'});
-    // Login
+async function fillTimesheet({ page, cfg, credentials, targetDate = new Date() }){
+    // Go to correct date. TODO: analyze supporting future targetDate
     {
-        // Some redirections might happen, so better to make sure that the username textbox exists
-        await page.waitForSelector('#okta-signin-username');
-        logger.log(`Logging in ${credentials.coxEmail}...`);
-        // await page.screenshot({path: '01 login-page.png'});
-
-        // Now we're on the login page. Enter credentials
-        await page.type('#okta-signin-username', credentials.coxEmail);
-        await page.type('#okta-signin-password', credentials.coxPassword);
-
-        // Submit the form
-        await page.click('input[type="submit"]');
-    }
-
-    // Go to timesheet page
-    {
-        // This will go to another page, wait until it loads
-        await page.waitForSelector('.navpage-layout');
-
-        logger.log(`Loading timesheet page...`);
-        // The current page has the page we want as framed in. Let's go to it
-        await page.goto('https://coxauto.service-now.com/time', {waitUntil: 'networkidle2'});
-
-        await page.waitForSelector('.date-selector button.icon-chevron-left');
-    }
-
-    // Go to correct date
-    {
-        //************************************* Go temporarily to previous page
         const targetDateText = getWeekPickerText(targetDate);
         logger.log(`Going to week "${targetDateText}"...`);
 
@@ -65,19 +34,6 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
 
     // Timesheet filling
     {
-        /*
-        async function getLoggedHours$() {
-            return await page.evaluate(() => {
-                return window.jQuery('#cal-container-1 .cal-container-4').map( (i, e) => parseInt($(e).text().trim()) ).get();
-            });
-        }
-
-        const loggedHours = await getLoggedHours$();
-        if(loggedHours.some(h => h > 0)) {
-            throw new Error('Cannot log. Timesheet already logged with totals: ', JSON.stringify(loggedHours));
-        }
-        */
-
         logger.log(`Filling timesheet...`);
         // Just in case wait for the project cards container
         await page.waitForSelector('.cards-panel-body');
@@ -86,7 +42,7 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
         await logRows(page, cfg.projectHours, cfg.workingDays);
 
         logger.log('Ready to submit...');
-        return;
+        // return;
 
         await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
         await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
@@ -95,7 +51,7 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
         const finalScreenshot = 'submitted.png';
         await page.screenshot({path: finalScreenshot});
         logger.log(`Sending emails...`);
-        await sendEmail$(credentials.mojixEmail, credentials.mojixPassword, cfg.emailSettings, targetDate, [`./${finalScreenshot}`]);
+        await sendSuccessEmail$(credentials.mojixEmail, credentials.mojixPassword, cfg.emailSettings, targetDate, [`./${finalScreenshot}`]);
         logger.log('SUCCESS.');
     }
 }
@@ -238,7 +194,7 @@ function getDayIntendedHours(targetDate, weekday, hdefault, exceptionalHours) {
     return ret;
 }
 
-function sendEmail$(mojixEmail, mojixPassword, emailSettings, targetDate, files) {
+function sendSuccessEmail$(mojixEmail, mojixPassword, emailSettings, targetDate, files) {
     //logger.log('emailSettings: ', emailSettings);
     const saturdayDate = dateFns.format(dateFns.endOfWeek(targetDate), 'YYYY-MM-DD');
     return sendMail$({
@@ -306,4 +262,4 @@ function getWeekPickerText(date = new Date()){
     return `${startDay} ${startMonthUI}${startYearUI}- ${endDay} ${endMonth} ${endYear}`;
 }
 
-module.exports = automate;
+module.exports = fillTimesheet;
