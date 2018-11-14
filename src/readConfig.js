@@ -1,5 +1,6 @@
 const fs    = require('fs');
 const nconf = require('nconf');
+const dateFns = require('date-fns');
 
 const logger = require('./lib/logger');
 
@@ -27,10 +28,19 @@ function readConfig() {
     return  nconf.get(null);
 }
 
+function getExecTargetDate(rawWeek, baseDate = new Date()) {
+    if(typeof(rawWeek) == 'number'){
+        return dateFns.addWeeks(baseDate, rawWeek);
+    }
+    return baseDate;
+}
+
 function getExecConfig (rawCfg, targetDate) {
     const rawCfgClone = JSON.parse(JSON.stringify(rawCfg));
     const execConfig = rawCfgClone.defaults;
     // TODO: apply weekOverrides
+
+    // execConfig.weekDelta = execConfig.weekDelta || 0;
 
     // Normalize projectHours
     const projectHours = execConfig.projectHours;
@@ -47,4 +57,4 @@ function getExecConfig (rawCfg, targetDate) {
     return execConfig;
 }
 
-module.exports = { readConfig, getExecConfig };
+module.exports = { readConfig, getExecConfig, getExecTargetDate };

@@ -5,6 +5,7 @@
     "mojixEmail": "YOUR_NAME@mojix.com",
     "mojixPassword": ""
   },
+  "week": 0,
   "defaults": {
     "emailSettings": {
       "to": ["cox_report@mojix.com"],

@@ -4,7 +4,7 @@ const weekdayNames = require('../constants').weekdayNames;
 const logger = require('../lib/logger');
 const sendMail$ = require('../lib/sendMail');
 
-async function fillTimesheet({ page, cfg, credentials, targetDate = new Date() }){
+async function fillTimesheet({ page, cfg, credentials, targetDate }){
     // Go to correct date. TODO: analyze supporting future targetDate
     {
         const targetDateText = getWeekPickerText(targetDate);
@@ -42,7 +42,7 @@ async function fillTimesheet({ page, cfg, credentials, targetDate = new Date() }
         await logRows(page, cfg.projectHours, cfg.workingDays);
 
         logger.log('Ready to submit...');
-        // return;
+        // return; // Uncomment this to avoid submission
 
         await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
         await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
@@ -50,7 +50,7 @@ async function fillTimesheet({ page, cfg, credentials, targetDate = new Date() }
         //
         const finalScreenshot = 'submitted.png';
         await page.screenshot({path: finalScreenshot});
-        logger.log(`Sending emails...`);
+        logger.log(`Sending success emails...`);
         await sendSuccessEmail$(credentials.mojixEmail, credentials.mojixPassword, cfg.emailSettings, targetDate, [`./${finalScreenshot}`]);
         logger.log('SUCCESS.');
     }

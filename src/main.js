@@ -1,5 +1,4 @@
-const readConfig = require('./readConfig').readConfig;
-const getExecConfig = require('./readConfig').getExecConfig;
+const { readConfig, getExecConfig, getExecTargetDate } = require('./readConfig');
 const createBrowserAndPage = require('./lib/createBrowserAndPage');
 const handleException = require('./exceptionHandler');
 
@@ -13,10 +12,11 @@ async function main(){
     const headless = true;
     // Load the page
     const { page, browser } = await createBrowserAndPage(headless);
-    const targetDate = new Date();
-    const execConfig = getExecConfig(rawCfg, targetDate);
-    // console.log(JSON.stringify(execConfig, null, 2));
+    let targetDate;
     try {
+        targetDate = getExecTargetDate(rawCfg.week);
+        console.log('targetDate: ', targetDate);
+        const execConfig = getExecConfig(rawCfg, targetDate);
         await login(page, credentials.coxEmail, credentials.coxPassword);
         await fillTimesheet({
             page,
@@ -27,7 +27,7 @@ async function main(){
         await browser.close();
     } catch (exc) {
         const sendExceptionEmail = true;    // Set to false during development.
-        await handleException(exc, browser, page, targetDate, rawCfg, credentials, headless, sendExceptionEmail);
+        await handleException(exc, browser, page, targetDate || new Date(), rawCfg, credentials, headless, sendExceptionEmail);
     }
 }
 
