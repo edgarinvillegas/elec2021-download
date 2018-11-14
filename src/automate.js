@@ -71,32 +71,73 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
             });
         }
 
-        // TODO: remove param
-        async function getHourDifference$(intendedHours) {
-            // Get the total accumulated hours by day. Useful for validation. Won't be needed once we implement pre cleanup
-            const actualTotalDailyHours = await getLoggedHours$();
-            const actualTotalDailyHoursObj = {}, differences = {};
-            weekdayNames.forEach( (day, i) =>  {
-                actualTotalDailyHoursObj[day] = actualTotalDailyHours[i];
-                differences[day] = (intendedHours[day] || 0) - actualTotalDailyHoursObj[day];
-            });
-            if(Object.values(differences).some( h => h < 0 )){
-                logger.log('Error. Intended hours: ', JSON.stringify(intendedHours), '\nCurrently logged: ', JSON.stringify(actualTotalDailyHoursObj), '.\nPlease submit your timesheet manually');
-            }
-            return differences;
+        const loggedHours = await getLoggedHours$();
+        if(loggedHours.some(h => h > 0)) {
+            throw new Error('Cannot log. Timesheet already logged with totals: ', JSON.stringify(loggedHours));
         }
 
-        function getIntendedHours() {
+        /*function getIntendedHours() {
             const intendedHours = {};
             weekdayNames.forEach( (day, i) =>  {
                 intendedHours[day] = getDayIntendedHours(targetDate, i, cfg.defaultHours[day], cfg.exceptionalHours);
             });
             return intendedHours;
         }
-        const intendedHours = getIntendedHours();
+        const intendedHours = getIntendedHours();*/
+        // function isAlreadyLogged()
+
 
         logger.log(`Filling timesheet...`);
-        const hourDifferences = await getHourDifference$(intendedHours);
+        // Just in case wait for the project cards container
+        await page.waitForSelector('.cards-panel-body');
+        await page.waitForSelector('#tc-grid');
+
+        let auxIntendedHours = null;
+        let auxNotes = null;
+
+        await page.setRequestInterception(true);
+        page.on('request', interceptedRequest => {
+            // console.log('INTERCEPTING REQUEST...');
+            if (interceptedRequest.url().includes('/timecardprocessor.do?sysparm_name=addToTimesheet&sysparm_processor=TimeCardPortalService')){
+                // console.log('Intercepted for ', auxIntendedHours, auxNotes)
+                // logger.log('Intercepted /timecardprocessor.do');
+                interceptedRequest.continue({
+                    postData: transformAddTimecardPostData(interceptedRequest.postData(), auxIntendedHours, auxNotes)
+                });
+            } else {
+                interceptedRequest.continue();
+            }
+        });
+
+        for(const prjKey in cfg.projectHours) {
+            const projectId = prjKey.split('/')[0].trim();
+            const categoryCode = prjKey.split('/')[1].trim();
+            const categoryLabel = [
+                'Planning',
+                'Development',
+                'Bug Fixes',
+                'Maintenance and Support'
+            ].find( label =>  label.toUpperCase().startsWith(categoryCode)) || 'Development';
+            /*const intendedHours = {
+                monday: 4,
+                tuesday: 4,
+                wednesday: 4,
+                thursday: 4,
+                friday: 4
+            };*/
+            const projectObj = cfg.projectHours[prjKey];
+            const intendedHours = {};
+            cfg.workingDays.forEach( (day, i) => {
+                intendedHours[day] = projectObj.hours[i];
+            });
+            auxIntendedHours = intendedHours;
+            auxNotes = projectObj.notes;
+            await logRow(page, projectId, categoryLabel, intendedHours, projectObj.notes);
+        }
+
+
+
+        /*const hourDifferences = await getHourDifference$(intendedHours);
         // If there's a negative difference, it means we cannot submit it. TODO: Add automatic timesheet wipe to avoid this
         if(Object.values(hourDifferences).some( h => h < 0 )) {
             // await page.screenshot({path: '06 Error - Times dont match.png'});
@@ -104,54 +145,11 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
         } else if (Object.values(hourDifferences).every( h => h === 0)) {
             logger.log(`Already logged desired hours: ${JSON.stringify(intendedHours)}. Skipping logging`);
         } else {
-            // Just in case wait for the project cards container
-            await page.waitForSelector('.cards-panel-body');
-            // await page.screenshot({path: '02 final-page.png'});
 
-            // Wait until we have the 'Add Line' button
-            logger.log(`Selecting project ${cfg.project}...`);
-            const projectCardSelector = `.card:contains(${cfg.project})`;
-            const addLineBtnSelector = `${projectCardSelector} button:contains(Add Line Item)`;
-
-            // Click on the Add Line button
-            await page.waitForJqSelector(addLineBtnSelector);
-            await page.triggerJqEvent(addLineBtnSelector, 'click');
-            // await page.screenshot({path: '03 Add Line clicked.png'});
-
-            // Wait until the 'Select time category' dropdown appears
-            logger.log(`Selecting category ${cfg.category}...`);
-            const categoryDropdownSelector = `${projectCardSelector} .select2-container.project-category`;
-            // Click on the 'Select time category' dropdown, and get the projectId
-            await page.waitForJqSelector(`${categoryDropdownSelector} .select2-arrow`);
-            await page.triggerJqEvent(`${categoryDropdownSelector} .select2-arrow`, 'mousedown');
-
-            // Wait until the dropdown opens
-            await page.waitForSelector('ul.select2-results li.select2-result-selectable');
-            // await page.screenshot({path: '04 Select category dropdown opened.png'});
-            // Click on the configured time category
-            await page.triggerJqEvent(`ul.select2-results li.select2-result-selectable div:contains(${cfg.category})`, 'mouseup');
-            // await page.screenshot({path: '04 Select category dropdown opened.png'});
-            // Start request interception to spoof hours
-            logger.log(`Logging hours to have ${JSON.stringify(intendedHours)}...`);
-            await page.setRequestInterception(true);
-            page.on('request', interceptedRequest => {
-                if (interceptedRequest.url().includes('/timecardprocessor.do?sysparm_name=addToTimesheet&sysparm_processor=TimeCardPortalService')){
-                    // logger.log('Intercepted /timecardprocessor.do');
-                    interceptedRequest.continue({
-                        postData: transformAddTimecardPostData(interceptedRequest.postData(), hourDifferences)
-                    });
-                } else {
-                    interceptedRequest.continue();
-                }
-            });
-            // Click on the 'Add Time' button
-            await page.triggerJqEvent(`${projectCardSelector} button.btn-primary:contains(Add Time)`, 'click');
-            // Make sure the row was added
-            await page.waitForJqSelector(`.tc-row:contains(${cfg.project})`);
-            // await page.screenshot({path: '05 Timecard added.png'});
-        }
+        }*/
 
         logger.log('Ready to submit...');
+        return;
 
         await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
         await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
@@ -163,6 +161,47 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
         await sendEmail$(credentials.mojixEmail, credentials.mojixPassword, cfg.emailSettings, targetDate, [`./${finalScreenshot}`]);
         logger.log('SUCCESS.');
     }
+}
+
+function getRowJq($, projectId, categoryLabel) {}
+
+async function logRow(page, projectId, categoryLabel, intendedHours, notes) {
+    // await page.screenshot({path: '02 final-page.png'});
+
+    // Wait until we have the 'Add Line' button
+    logger.log(`Selecting project ${projectId}...`);
+    const projectCardSelector = `.card:contains(${projectId})`;
+    const addLineBtnSelector = `${projectCardSelector} button:contains(Add Line Item)`;
+
+    // Click on the Add Line button
+    await page.waitForJqSelector(addLineBtnSelector);
+    await page.triggerJqEvent(addLineBtnSelector, 'click');
+    // await page.screenshot({path: '03 Add Line clicked.png'});
+
+    // Wait until the 'Select time category' dropdown appears
+    logger.log(`Selecting category ${categoryLabel}...`);
+    const categoryDropdownSelector = `${projectCardSelector} .select2-container.project-category`;
+    // Click on the 'Select time category' dropdown, and get the projectId
+    await page.waitForJqSelector(`${categoryDropdownSelector} .select2-arrow`);
+    await page.triggerJqEvent(`${categoryDropdownSelector} .select2-arrow`, 'mousedown');
+
+    // Wait until the dropdown opens
+    await page.waitForSelector('ul.select2-results li.select2-result-selectable');
+    // await page.screenshot({path: '04 Select category dropdown opened.png'});
+    // Click on the configured time category
+    await page.triggerJqEvent(`ul.select2-results li.select2-result-selectable div:contains(${categoryLabel})`, 'mouseup');
+    // await page.screenshot({path: '04 Select category dropdown opened.png'});
+    // Start request interception to spoof hours
+    logger.log(`Logging hours to have ${JSON.stringify(intendedHours)}...`);
+    // Click on the 'Add Time' button
+    await page.triggerJqEvent(`${projectCardSelector} button.btn-primary:contains(Add Time)`, 'click');
+    // The request has been already set to be intercepted
+    // Make sure the row was added
+    await page.waitForJqSelector(`#tc-grid .tc-row:contains(${projectId}):contains(${categoryLabel})`);
+    //page.removeListener('request', requestListener);
+    //await page.setRequestInterception(true);
+    logger.log('Row added succesfully');
+    // await page.screenshot({path: '05 Timecard added.png'});
 }
 
 /**
@@ -208,7 +247,7 @@ function sendEmail$(mojixEmail, mojixPassword, emailSettings, targetDate, files)
     });
 }
 
-function transformAddTimecardPostData(originalPostData, hours) {
+function transformAddTimecardPostData(originalPostData, hours, notes) {
     //Decode originalPostData
     const urlEncodedValuesComponent = originalPostData.split('values=')[1];
     const values = JSON.parse(decodeURIComponent(urlEncodedValuesComponent));
@@ -222,6 +261,7 @@ function transformAddTimecardPostData(originalPostData, hours) {
                 "wednesday": "8",
                 "thursday": "8",
                 "friday": "8",
+                "notes": "These are my notes",
                 "time_sheet": "37274231db61ab40b94169c3ca961995",
                 "category": "task_work",
                 "task": "e0dfbc03db2cef406062dff648961958",
@@ -233,6 +273,9 @@ function transformAddTimecardPostData(originalPostData, hours) {
     }
     */
     //Update each day hours based on the config. It modifies values
+    if(notes) {
+        values.timecards[0].notes = String(notes);
+    }
     Object.keys(hours).forEach( day => values.timecards[0][day] = String(hours[day]));
     // Encode back
     const valuesJsonStr = JSON.stringify(values);

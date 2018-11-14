@@ -16,9 +16,9 @@
     "notes": ["", "", "", "", "" ],
     "sendEmailIfAlreadySubmitted": false,
     "projectHours": {
-      "PRJ0010000-DEV": [ 2, 2, 2, 2, 2 ],
-      "PRJ0020000-BUG": [ 3, 3, 3, 3, 3 ],
-      "PRJ0020000-SUP": [ 3, 3, 3, 3, 3 ]
+      "PRJ0010000/DEV": [ 2, 2, 2, 2, 2 ],
+      "PRJ0020000/BUG": [ 3, 3, 3, 3, 3 ],
+      "PRJ0020000/SUP": [ 3, 3, 3, 3, 3 ]
     },
     "weekDelta": 0
   },
