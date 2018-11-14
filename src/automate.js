@@ -83,62 +83,7 @@ async function automate({ page, cfg, credentials, targetDate = new Date() }){
         await page.waitForSelector('.cards-panel-body');
         await page.waitForSelector('#tc-grid');
 
-        // Aux variables for the request interceptor closure
-        let auxHoursToLog = null;
-        let auxNotes = null;
-
-        // Set the request interceptor. TODO: Make this work inside logRow
-        await page.setRequestInterception(true);
-        page.on('request', interceptedRequest => {
-            // console.log('INTERCEPTING REQUEST...');
-            if (interceptedRequest.url().includes('/timecardprocessor.do?sysparm_name=addToTimesheet&sysparm_processor=TimeCardPortalService')){
-                // console.log('Intercepted for ', auxIntendedHours, auxNotes)
-                // logger.log('Intercepted /timecardprocessor.do');
-                interceptedRequest.continue({
-                    postData: transformAddTimecardPostData(interceptedRequest.postData(), auxHoursToLog, auxNotes)
-                });
-            } else {
-                interceptedRequest.continue();
-            }
-        });
-
-        for(const prjKey in cfg.projectHours) {
-            logger.log(`--Processing row ${prjKey}...`);
-            const projectId = prjKey.split('/')[0].trim();
-            const categoryCode = prjKey.split('/')[1].trim();
-            const categoryLabel = [
-                'Planning',
-                'Development',
-                'Bug Fixes',
-                'Maintenance and Support'
-            ].find( label =>  label.toUpperCase().startsWith(categoryCode)) || 'Development';
-            const projectObj = cfg.projectHours[prjKey];
-            const intendedHours = {};
-            cfg.workingDays.forEach( (day, i) => {
-                intendedHours[day] = projectObj.hours[i];
-            });
-            logger.log(`Attempting to log ${JSON.stringify(intendedHours)}`);
-            // await page.waitForJqSelector(`#tc-grid .tc-row:contains(${projectId}):contains(${categoryLabel})`);
-            const rowAlreadyLoggedHours = await getRowAlreadyLoggedHours(page, projectId, categoryLabel);
-            const remainingHours = {};
-            weekdayNames.forEach( (day, i) => {
-                remainingHours[day] = (intendedHours[day] || 0) - rowAlreadyLoggedHours[i];
-            });
-            const notes = projectObj.notes
-
-            // These are just aux variables for the request interception closure
-            auxHoursToLog = remainingHours;
-            auxNotes = notes;
-
-            if(Object.values(remainingHours).some( h => h > 0)) {
-                if(rowAlreadyLoggedHours.some( h => h > 0)){
-                    logger.log(`Hours already logged: ${JSON.stringify(rowAlreadyLoggedHours)}. Logging remaining: ${JSON.stringify(remainingHours)}...`);
-                }
-                await logRow(page, projectId, categoryLabel, remainingHours, notes);
-            } else {
-                logger.log(`Desired hours were already logged for ${projectId} / ${categoryLabel}. Skipping`);
-            }
-        }
+        await logRows(page, cfg.projectHours, cfg.workingDays);
 
         logger.log('Ready to submit...');
         return;
@@ -167,7 +112,65 @@ async function getRowAlreadyLoggedHours(page, projectId, categoryLabel) {
     return alreadyLoggedHours.length > 0 ? alreadyLoggedHours : weekdayNames.map( () => 0 );
 }
 
-function getRowJq($, projectId, categoryLabel) {}
+async function logRows(page, projectHours, workingDays) {
+    // Aux variables for the request interceptor closure
+    let auxHoursToLog = null;
+    let auxNotes = null;
+
+    // Set the request interceptor. TODO: Make this work inside logRow
+    await page.setRequestInterception(true);
+    page.on('request', interceptedRequest => {
+        // console.log('INTERCEPTING REQUEST...');
+        if (interceptedRequest.url().includes('/timecardprocessor.do?sysparm_name=addToTimesheet&sysparm_processor=TimeCardPortalService')){
+            // console.log('Intercepted for ', auxIntendedHours, auxNotes)
+            // logger.log('Intercepted /timecardprocessor.do');
+            interceptedRequest.continue({
+                postData: transformAddTimecardPostData(interceptedRequest.postData(), auxHoursToLog, auxNotes)
+            });
+        } else {
+            interceptedRequest.continue();
+        }
+    });
+
+    for(const prjKey in projectHours) {
+        logger.log(`--Processing row ${prjKey}...`);
+        const projectId = prjKey.split('/')[0].trim();
+        const categoryCode = prjKey.split('/')[1].trim();
+        const categoryLabel = [
+            'Planning',
+            'Development',
+            'Bug Fixes',
+            'Maintenance and Support'
+        ].find( label =>  label.toUpperCase().startsWith(categoryCode)) || 'Development';
+        const projectObj = projectHours[prjKey];
+        const intendedHours = {};
+        workingDays.forEach( (day, i) => {
+            intendedHours[day] = projectObj.hours[i];
+        });
+        logger.log(`Attempting to log ${JSON.stringify(intendedHours)}`);
+        // await page.waitForJqSelector(`#tc-grid .tc-row:contains(${projectId}):contains(${categoryLabel})`);
+        const rowAlreadyLoggedHours = await getRowAlreadyLoggedHours(page, projectId, categoryLabel);
+        const remainingHours = {};
+        weekdayNames.forEach( (day, i) => {
+            remainingHours[day] = (intendedHours[day] || 0) - rowAlreadyLoggedHours[i];
+        });
+        const notes = projectObj.notes
+
+        // These are just aux variables for the request interception closure
+        auxHoursToLog = remainingHours;
+        auxNotes = notes;
+
+        if(Object.values(remainingHours).some( h => h > 0)) {
+            if(rowAlreadyLoggedHours.some( h => h > 0)){
+                logger.log(`Hours already logged: ${JSON.stringify(rowAlreadyLoggedHours)}. Logging remaining: ${JSON.stringify(remainingHours)}...`);
+            }
+            await logRow(page, projectId, categoryLabel, remainingHours, notes);
+        } else {
+            logger.log(`Desired hours were already logged for ${projectId} / ${categoryLabel}. Skipping`);
+        }
+    }
+
+}
 
 async function logRow(page, projectId, categoryLabel, intendedHours, notes) {
     // await page.screenshot({path: '02 final-page.png'});
