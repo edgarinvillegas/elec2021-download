@@ -116,11 +116,15 @@ async function logRows(page, projectHours, workingDays) {
         auxHoursToLog = remainingHours;
         auxNotes = notes;
 
-        if(Object.values(remainingHours).some( h => h > 0)) {
+        if(Object.values(remainingHours).some( h => h > 0 || h < 0)) {
             if(rowAlreadyLoggedHours.some( h => h > 0)){
                 logger.log(`Hours already logged: ${JSON.stringify(rowAlreadyLoggedHours)}. Logging remaining: ${JSON.stringify(remainingHours)}...`);
             }
-            await logRow(page, projectId, categoryLabel, remainingHours, notes);
+            if(Object.values(remainingHours).some( h => h < 0)){
+                throw new Error('Cannot log negative hours. Please fix current logged hours manually');
+            } else {
+                await logRow(page, projectId, categoryLabel, remainingHours, notes);
+            }
         } else {
             logger.log(`Desired hours were already logged for ${projectId} / ${categoryLabel}. Skipping`);
         }
@@ -165,33 +169,6 @@ async function logRow(page, projectId, categoryLabel, intendedHours, notes) {
     //await page.setRequestInterception(true);
     logger.log('Row added succesfully');
     // await page.screenshot({path: '05 Timecard added.png'});
-}
-
-/**
- * Returns the weekday of the targetDate's week, formatted
- * For example, if tomorrow is Thursday, Nov 9, 2018
- * then getFormattedDateByWeekday(new Date(), 3) will return '2018-11-09' (3 = thursday)
- * @param targetDate A date of the week
- * @param weekday 0 for sunday, 1 for monday, etc
- * @returns {string}
- */
-function getFormattedDateByWeekday(targetDate, weekday) {
-    return dateFns.format(dateFns.startOfWeek(targetDate, {weekStartsOn: weekday}), 'YYYY-MM-DD');
-}
-
-function getDayIntendedHours(targetDate, weekday, hdefault, exceptionalHours) {
-    if(hdefault === undefined) return 0;    // To return 0 on weekends
-    const formattedDate = getFormattedDateByWeekday(targetDate, weekday);
-    let ret = hdefault;
-    for(let dateRange in exceptionalHours){
-        const value = exceptionalHours[dateRange];
-        const startDate = dateRange.split(':')[0].trim();
-        const endDate = (dateRange.split(':')[1] || startDate).trim();
-        if(startDate <= formattedDate && formattedDate <= endDate) {
-            ret = value;
-        }
-    }
-    return ret;
 }
 
 function sendSuccessEmail$(mojixEmail, mojixPassword, emailSettings, targetDate, files) {

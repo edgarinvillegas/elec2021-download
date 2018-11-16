@@ -126,7 +126,7 @@ function getWeekExecConfig (rawCfg, targetDate) {
     if(rawCfg.weekOverrides) {
         let mergedWeekConfig = null;
         Object.entries(rawCfg.weekOverrides).forEach( ([oDateRange, oWeekCfg]) => {
-            console.log('must override: ', mustOverride(targetDate, oDateRange));
+            // console.log('must override: ', mustOverride(targetDate, oDateRange));
             if(!mustOverride(targetDate, oDateRange)) return;
             mergedWeekConfig = JSON.parse(JSON.stringify(defaultNormalizedWeekConfig));   // Starts with default values
             const mergedEmailSettings = Object.assign({}, mergedWeekConfig.emailSettings, oWeekCfg.emailSettings);
@@ -147,7 +147,7 @@ function mustOverride(targetDate, oDateRangeStr) {
     const startDate = getFormattedDateByWeekday(date1, 0);  // Sunday
     const endDate = getFormattedDateByWeekday(date2, 6);    // Saturday
     const formattedTargetDate = dateFns.format(targetDate, 'YYYY-MM-DD');
-    console.log(`${startDate} <= ${formattedTargetDate} <= ${endDate} `);
+    // console.log(`${startDate} <= ${formattedTargetDate} <= ${endDate} `);
     return startDate <= formattedTargetDate && formattedTargetDate <= endDate;
 }
 
