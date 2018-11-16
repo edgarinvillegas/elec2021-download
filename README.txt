@@ -12,40 +12,101 @@ npm install
 *** Executing ***
 node index.js
 
-This will create a config.json file. Edit it (see below) and rerun node index.js
+This will create a credentials.json and config.js file. Edit them and rerun node index.js
+To edit config.js, check the following example:
 
-*** About config.json: ****
-EXAMPLE: (See comments inline)
+*** About config.js: ****
+- EXAMPLE: (See comments inline)
 
 {
-  "credentials": {
-    "coxEmail": "edgar.villegas@coxautoinc.com", // Mandatory.  Needed to fill the timesheet
-    "coxPassword": "****",  // Mandatory
-    "mojixEmail": "edgar.villegas@mojix.com",   // Mandatory. This is needed to send the email. Can be any gmail account.
-    "mojixPassword": "****"  // Mandatory
-  },
-  "project": "PRJ0012345",      // Mandatory. This is found in the timesheet page, in the left sidebar. Always starts with PRJ
-  "category": "Development",    // Mandatory. Can also be "Planning", "Bug Fixes" or "Maintenance and Support". Case sensitive for now
-  "defaultHours": {     // Optional. Will assume 8 hours monday-friday if omitted.
-    "monday": 8,
-    "tuesday": 8,
-    "wednesday": 8,
-    "thursday": 8,
-    "friday": 8
-  },
-  // Optional. This is where you put holidays, vacations, time offs, etc. No problem if past dates appear here.
-  "exceptionalHours": {
-      "2018-11-01": 0,      // A single time off day
-      "2017-12-31:2018-01-05": 0,  // This is a sample range of new year's vacations
-  },
-  "emailSettings": {
-    "to": [         // Mandatory
-      "cox_report@mojix.com"
-    ],
-    "cc": [],       // Optional. Usually the lead's email will come here
-    "bcc": [],      // Optional.
-    "subjectTemplate": "{weekendDate} 1234 Villegas"   // Mandatory. {weekendDate} will be replaced by saturday's date.
-  }
+    credentials: require('./credentials.json'),
+    week: 0,        // 0 will log current week. -1 for last week, -2 for 2 weeks ago, etc. It must be <= 0
+    defaults: {
+        emailSettings: {
+            to: ['cox_report@mojix.com'],
+            cc: ['LEAD_NAME@mojix.com'],
+            bcc: [],
+            subjectTemplate: '{weekendDate} 1234 PEREZ'
+        },
+        workingDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday' ],
+        /*The project key is the project id (found in timesheet page) and the first letters of the category (case insensitive)
+          DEV = Development
+          SUP = Support and Maintenance
+          BUG = Bug Fixes
+          PLA = Planning
+        */
+        projectHours: {
+            'PRJ0010000/DEV': [ 2, 2, 2, 2, 2 ],
+            'PRJ0020000/SUP': [ 1, 1, 1, 1, 1 ],
+            'PRJ0020000/BUG': [ 5, 5, 5, 5, 5 ]
+        }
+    },
+    /*
+    * These dates will be marked as 0 (overriding defaults) and will be
+    * automatically added to Notes, like "Monday: Holiday | Thursday: PTO"
+    */
+    zeroDays: {
+        "Holiday": ['2018-06-06', '2018-11-02', '2018-12-25', '2019-01-01'],
+        "PTO": [],
+        "Sick leave": [],
+        "Put here your custom reason for zeroday": []
+    }
+}
+
+- ADVANCED EXAMPLE with weekOverrides.
+weekOverrides overrides the default configuration for a specific week.
+TODO: Add more detailed description.
+
+{
+    credentials: require('./credentials.json'),
+    week: 0,        // 0 will log current week. -1 for last week, -2 for 2 weeks ago, etc. It must be <= 0
+    defaults: {
+        emailSettings: {
+            to: ['cox_report@mojix.com'],
+            cc: ['LEAD_NAME@mojix.com'],
+            bcc: [],
+            subjectTemplate: '{weekendDate} 1234 PEREZ'
+        },
+        workingDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday' ],
+        /*The project key is the project id (found in timesheet page) and the first letters of the category (case insensitive)
+          DEV = Development
+          SUP = Support and Maintenance
+          BUG = Bug Fixes
+          PLA = Planning
+        */
+        projectHours: {
+            'PRJ0010000/DEV': [ 2, 2, 2, 2, 2 ],
+            'PRJ0020000/SUP': [ 1, 1, 1, 1, 1 ],
+            'PRJ0020000/BUG': {         //Alternative syntax to have notes.
+                hours: [ 5, 5, 5, 5, 5 ],
+                notes: 'Prod bug fixing as usual'
+            },
+        }
+    },
+    /*
+    * These dates will be marked as 0 (overriding defaults) and will be
+    * automatically added to Notes, like "Monday: Holiday | Thursday: PTO"
+    */
+    zeroDays: {
+        "Holiday": ['2018-06-06', '2018-11-02', '2018-12-25', '2019-01-01'],
+    }
+
+    //weekOverrides is used for weeks different than the default. Mainly used for holidays, vacations, etc
+    //(Dates outside config.week won't be processed, so you can fill in advance without problems.)
+    // This has more precedence than zeroDays.
+    weekOverrides: {
+            '2018-11-13': {     // This string can be any date in the desired week.
+                emailSettings: {    // Specifying this will override only internal fields
+                    cc: ['LEAD_NAME@mojix.com', 'pepito@mojix.com']     // This week I want to send to pepito as well
+                },
+                projectHours: {     // Specifying projectHours will overwrite the whole projectHours node
+                    'PRJ0020909/DEV': {
+                        hours: [ 8, 8, 8, 0, 8 ],
+                        notes: 'Exceptional week. Thursday was All Saints holiday'
+                    },
+                }
+            }
+        }
 }
 
 FAQ Frequently asked questions

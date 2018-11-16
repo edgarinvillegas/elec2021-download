@@ -41,6 +41,8 @@ async function fillTimesheet({ page, cfg, credentials, targetDate }){
 
         await logRows(page, cfg.projectHours, cfg.workingDays);
 
+
+        // console.log('total total in UI: ', await page.getTextJq('.tcp-header .ts-data:contains(Total) .ts-val'));
         const totalHoursLogged = parseInt(await page.getTextJq('.tcp-header .ts-data:contains(Total) .ts-val')) || 0;
         /*const expectedTotal = Object.values(cfg.projectHours).map( prjData => prjData.hours ).reduce( (tot, hours ) => {
             return tot + hours.reduce( (st, h) => st + h );

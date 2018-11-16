@@ -54,8 +54,12 @@ function readConfig() {
 }
 
 function getExecTargetDate(rawWeek, baseDate = new Date()) {
-    if(typeof(rawWeek) == 'number'){
-        return dateFns.addWeeks(baseDate, rawWeek);
+    if(typeof(rawWeek) == 'number' || rawWeek == Number(rawWeek)){
+        if(rawWeek > 0) throw new Error('config.week cannot be positive yet. Enter a number equal or lower to 0')
+        return dateFns.addWeeks(baseDate, Number(rawWeek));
+    }
+    if(typeof(rawWeek) == 'string') {
+        return dateFns.parse(rawWeek);
     }
     return baseDate;
 }
@@ -79,6 +83,7 @@ function normalizeWeekConfig(baseWeekConfig){
     if(!weekExecConfig.workingDays) {
         weekExecConfig.workingDays = weekdayNames.slice(1, 6); //Monday to friday
     }
+    weekExecConfig.workingDays = weekExecConfig.workingDays.map(d => d.toLowerCase());
     weekExecConfig.sendEmailIfAlreadySubmitted = !!weekExecConfig.sendEmailIfAlreadySubmitted;
     return weekExecConfig;
 }
