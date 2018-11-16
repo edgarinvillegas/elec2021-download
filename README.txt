@@ -111,20 +111,33 @@ TODO: Add more detailed description.
 
 FAQ Frequently asked questions
 
-1) Is it secure? Does it send my passwords anywhere?
+0) Why is this readme so ugly?
+This is just a draft. README.md coming soon.
+
+1) Why does it send the email report in png instead of pdf?
+Sending PDF was in the roadmap. However, for Mojix it's the same to receive a pdf or png, both demonstrate a logged timesheet.
+So, it's unlikely  cox-timesheet will support pdf.
+
+2) Is it secure? Does it send my passwords anywhere?
 cox-timesheet doesn't store or send any password. You can check the code, that's the warranty.
 
-If you don't feel comfortable leaving your passwords in the config file, you can also provide them as command line arguments.
+If you don't feel comfortable leaving your passwords in the config file, you can also provide them as command line arguments or environment variables.
 Documentation coming soon.
 
-2) Why isn't it a downloadable npm module?
+3) Why isn't it a downloadable npm module?
 That's coming soon.
 
-3) How can program it to run automatically every friday?
+4) How can program it to run automatically every friday?
 You can use cronjobs in *nix and 'at' command on Windows (Documentation coming soon). It's recommended for it to run on a 24/7 workstation/server.
-You'll just need to update the `exceptionalHours` from time to time when you know you'll be off.
+You'll just need to update the `zeroDays` (or weekOverrides for something very custom) from time to time when you know you'll be off.
 
+5) If there's an error and timesheet cannot be filled, what happens?
 
+If there's an error in the process, it will send you an email (to your mojix/cox email) with the error log and a screenshot of the last step achieved.
+It won't send an email to cox_report@mojix.com, (or the to).
+If there's an error with the basic configuration, like wrong credentials, it will just log to the console and will exit with code 1.
 
-
+6) What happens if I already submitted the timesheet and run the program?.
+Nothing! :) so you can safely rerun the program n times. It's idemnpotent by default.
+It will tell you it was already logged and won't send the email to cox_report, but it will send an email to yourself, indicating that.
 
