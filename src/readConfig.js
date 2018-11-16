@@ -39,7 +39,8 @@ function readConfig() {
             mojixPassword: ''
         };
         fs.writeFileSync( credentials_file, JSON.stringify(defaultCredentials, null, 2) );
-        logger.log(`${credentials_file} created in the current directory. Please edit it and rerun the application`);
+        logger.log(`${credentials_file} created in the current directory. Please *add your credentials* there and rerun the application`);
+        process.exit(1);
     }
     // nconf.file({file: conf_file});
     const configJsObj = require(conf_file_fullpath)

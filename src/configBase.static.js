@@ -11,7 +11,7 @@ const config = {
             to: ['cox_report@mojix.com'],
             cc: ['LEAD_NAME@mojix.com'],
             bcc: [],
-            subjectTemplate: '{weekendDate} 1234 PEREZ'
+            subjectTemplate: '{weekendDate} 1234 PEREZ'     // Here the convention is to put your employee ID and last name
         },
         workingDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday' ],
         /*The project key is the project id (found in timesheet page) and the first letters of the category (case insensitive)
