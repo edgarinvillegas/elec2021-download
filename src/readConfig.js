@@ -3,6 +3,7 @@ const nconf = require('nconf');
 const dateFns = require('date-fns');
 
 const logger = require('./lib/logger');
+const { weekdayNames } = require('./constants');
 
 /**
  * Get the configuration object.
@@ -59,6 +60,12 @@ function getExecTargetDate(rawWeek, baseDate = new Date()) {
     return baseDate;
 }
 
+/**
+ * Gets the calculated configuration for targetDate week.
+ * @param rawCfg
+ * @param targetDate
+ * @returns {Object}
+ */
 function getExecConfig (rawCfg, targetDate) {
     const rawCfgClone = JSON.parse(JSON.stringify(rawCfg));
     const execConfig = rawCfgClone.defaults;
@@ -78,7 +85,76 @@ function getExecConfig (rawCfg, targetDate) {
             projectHours[prj].notes = projectHours[prj].notes || '';
         }
     }
+
+    (function processZeroDays(){
+        if(rawCfgClone.zeroDays) {
+            const dayReasons = execConfig.workingDays.map( (day, i) =>  {
+                return getZeroDayReason(targetDate, i, rawCfgClone.zeroDays);
+            });
+
+            Object.entries(projectHours).forEach( ([prj, { hours, notes }]) => {
+                // console.log(prj, hours, notes);
+                const zeroDayNotes = [];
+                execConfig.workingDays.forEach( (day, i) =>  {
+                    const reason = dayReasons[i];
+                    // If there's a zeroDayReason for the day, make it 0, otherwise keep value.
+                    hours[i] = reason === null ? hours[i] : 0;
+                    if(reason !== null) {
+                        zeroDayNotes.push(`${day.toUpperCase()}: ${reason}`);
+                    }
+                });
+                if(zeroDayNotes.length) {
+                    projectHours[prj].notes += '\n' + zeroDayNotes.join(' | ');
+                }
+            });
+        }
+    })();
+
+    console.log(JSON.stringify(projectHours, null, 2));
+
+
+
     return execConfig;
 }
+
+/**
+ * Returns the weekday of the targetDate's week, formatted
+ * For example, if tomorrow is Thursday, Nov 9, 2018
+ * then getFormattedDateByWeekday(new Date(), 3) will return '2018-11-09' (3 = thursday)
+ * @param targetDate A date of the week
+ * @param weekday 0 for sunday, 1 for monday, etc
+ * @returns {string}
+ */
+function getFormattedDateByWeekday(targetDate, weekday) {   //@uses()
+    return dateFns.format(dateFns.startOfWeek(targetDate, {weekStartsOn: weekday}), 'YYYY-MM-DD');
+}
+
+function getZeroDayReason(targetDate, weekday, zeroDays) {  //@uses()
+    const formattedDate = getFormattedDateByWeekday(targetDate, weekday);
+    let ret = null;
+    Object.entries(zeroDays).forEach( ([ reason, dates ]) => {
+        // console.log('---- ', reason);
+        dates.forEach( dateRange => {
+            // console.log('-- dateRange: ', dateRange)
+            const startDate = dateRange.split(':')[0].trim();
+            const endDate = (dateRange.split(':')[1] || startDate).trim();
+            if(startDate <= formattedDate && formattedDate <= endDate) {
+                ret = reason;
+                console.log(formattedDate, ' is ', reason);
+            }
+        });
+    });
+    // console.log('Reason for ', formattedDate, ': ', ret);
+    return ret;
+}
+
+function getIntendedHours() { //@uses()
+    const intendedHours = {};
+    weekdayNames.forEach( (day, i) =>  {
+        intendedHours[day] = getDayIntendedHours(targetDate, i, cfg.defaultHours[day], cfg.exceptionalHours);
+    });
+    return intendedHours;
+}
+
 
 module.exports = { readConfig, getExecConfig, getExecTargetDate };
