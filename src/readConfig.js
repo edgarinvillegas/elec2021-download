@@ -11,21 +11,41 @@ const logger = require('./lib/logger');
  */
 function readConfig() {
     logger.log('Reading configuration...');
-    const conf_file ='./config.json';
+    const credentials_file ='./credentials.json';
+    // const missingConfFiles = [];
+    const old_config_file = './config.json';
+    if( fs.existsSync(old_config_file) ) {
+        logger.log(`${old_config_file} is deprecated. Please use config.js`);
+    }
+
+    if( ! fs.existsSync(credentials_file) ) {
+        const defaultCredentials =  {
+            coxEmail: 'YOUR_NAME@coxautoinc.com',
+            coxPassword: '',
+            mojixEmail: 'YOUR_NAME@mojix.com',
+            mojixPassword: ''
+        };
+        fs.writeFileSync( credentials_file, JSON.stringify(defaultCredentials, null, 2) );
+        logger.log(`${credentials_file} created in the current directory. Please edit it and rerun the application`);
+    }
+    const conf_file ='./config.js';
     if( ! fs.existsSync(conf_file) ) {
         // fs.writeFileSync( conf_file, JSON.stringify(conf_defaults, null, 2) );
-        const configBaseContents = fs.readFileSync(`${__dirname}/configBase.json`, 'utf8');
+        const configBaseContents = fs.readFileSync(`${__dirname}/configBase.static.js`, 'utf8');
         fs.writeFileSync( conf_file, configBaseContents );
-        logger.log(`Please edit ${conf_file} and rerun the application`);
+        logger.log(`${conf_file} created in the current directory. Please edit it and rerun the application`);
         process.exit(1);
     }
     // nconf.file({file: conf_file});
+    const configJsObj = require(process.cwd() + '/config.js')
+
     nconf.argv()
         // .env()
-        .file({ file: conf_file })
-        // .defaults(conf_defaults);
+        // .file({ file: conf_file })
+        //.defaults(require('../config.js'));
+        .defaults(configJsObj);
 
-    return  nconf.get(null);
+    return nconf.get(null);
 }
 
 function getExecTargetDate(rawWeek, baseDate = new Date()) {
