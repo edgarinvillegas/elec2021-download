@@ -60,21 +60,11 @@ function getExecTargetDate(rawWeek, baseDate = new Date()) {
     return baseDate;
 }
 
-/**
- * Gets the calculated configuration for targetDate week.
- * @param rawCfg
- * @param targetDate
- * @returns {Object}
- */
-function getExecConfig (rawCfg, targetDate) {
-    const rawCfgClone = JSON.parse(JSON.stringify(rawCfg));
-    const execConfig = rawCfgClone.defaults;
-    // TODO: apply weekOverrides
-
-    // execConfig.weekDelta = execConfig.weekDelta || 0;
+function normalizeWeekConfig(baseWeekConfig){
+    const weekExecConfig =  JSON.parse(JSON.stringify(baseWeekConfig));
 
     // Normalize projectHours
-    const projectHours = execConfig.projectHours;
+    const projectHours = weekExecConfig.projectHours;
     for(const prj in projectHours) {
         if(projectHours[prj].length) {
             projectHours[prj] = {
@@ -85,17 +75,36 @@ function getExecConfig (rawCfg, targetDate) {
             projectHours[prj].notes = projectHours[prj].notes || '';
         }
     }
+    // Normalize workingDays
+    if(!weekExecConfig.workingDays) {
+        weekExecConfig.workingDays = weekdayNames.slice(1, 6); //Monday to friday
+    }
+    weekExecConfig.sendEmailIfAlreadySubmitted = !!weekExecConfig.sendEmailIfAlreadySubmitted;
+    return weekExecConfig;
+}
+
+/**
+ * Gets the calculated configuration for targetDate week.
+ * @param rawCfg
+ * @param targetDate
+ * @returns {Object}
+ */
+function getWeekExecConfig (rawCfg, targetDate) {
+    const defaultNormalizedWeekConfig = normalizeWeekConfig(rawCfg.defaults)
+    let weekExecConfig = JSON.parse(JSON.stringify(defaultNormalizedWeekConfig));
+    //let weekExecConfig = normalizeWeekConfig(rawCfg.defaults);  //Start with defaults
 
     (function processZeroDays(){
-        if(rawCfgClone.zeroDays) {
-            const dayReasons = execConfig.workingDays.map( (day, i) =>  {
-                return getZeroDayReason(targetDate, i, rawCfgClone.zeroDays);
+        const projectHours = weekExecConfig.projectHours;
+        if(rawCfg.zeroDays) {
+            const dayReasons = weekExecConfig.workingDays.map( (day, i) =>  {
+                return getZeroDayReason(targetDate, i, rawCfg.zeroDays);
             });
 
             Object.entries(projectHours).forEach( ([prj, { hours, notes }]) => {
                 // console.log(prj, hours, notes);
                 const zeroDayNotes = [];
-                execConfig.workingDays.forEach( (day, i) =>  {
+                weekExecConfig.workingDays.forEach( (day, i) =>  {
                     const reason = dayReasons[i];
                     // If there's a zeroDayReason for the day, make it 0, otherwise keep value.
                     hours[i] = reason === null ? hours[i] : 0;
@@ -110,11 +119,36 @@ function getExecConfig (rawCfg, targetDate) {
         }
     })();
 
-    console.log(JSON.stringify(projectHours, null, 2));
 
 
+    // Week overrides
+    const targetSaturday = getFormattedDateByWeekday(targetDate, 6);
+    if(rawCfg.weekOverrides) {
+        let mergedWeekConfig = null;
+        Object.entries(rawCfg.weekOverrides).forEach( ([oDateRange, oWeekCfg]) => {
+            console.log('must override: ', mustOverride(targetDate, oDateRange));
+            if(!mustOverride(targetDate, oDateRange)) return;
+            mergedWeekConfig = JSON.parse(JSON.stringify(defaultNormalizedWeekConfig));   // Starts with default values
+            const mergedEmailSettings = Object.assign({}, mergedWeekConfig.emailSettings, oWeekCfg.emailSettings);
+            Object.assign(mergedWeekConfig, oWeekCfg);
+            mergedWeekConfig.emailSettings = mergedEmailSettings;
+        });
+        if(mergedWeekConfig){
+            weekExecConfig = mergedWeekConfig;
+        }
+    }
 
-    return execConfig;
+    return weekExecConfig;
+}
+
+function mustOverride(targetDate, oDateRangeStr) {
+    const date1 = oDateRangeStr.split(':')[0];
+    const date2 = oDateRangeStr.split(':')[1] || date1;
+    const startDate = getFormattedDateByWeekday(date1, 0);  // Sunday
+    const endDate = getFormattedDateByWeekday(date2, 6);    // Saturday
+    const formattedTargetDate = dateFns.format(targetDate, 'YYYY-MM-DD');
+    console.log(`${startDate} <= ${formattedTargetDate} <= ${endDate} `);
+    return startDate <= formattedTargetDate && formattedTargetDate <= endDate;
 }
 
 /**
@@ -126,7 +160,9 @@ function getExecConfig (rawCfg, targetDate) {
  * @returns {string}
  */
 function getFormattedDateByWeekday(targetDate, weekday) {   //@uses()
-    return dateFns.format(dateFns.startOfWeek(targetDate, {weekStartsOn: weekday}), 'YYYY-MM-DD');
+    //return dateFns.format(dateFns.startOfWeek(targetDate, {weekStartsOn: weekday}), 'YYYY-MM-DD');
+    const weekStartDate = dateFns.startOfWeek(targetDate, {weekStartsOn: 0});
+    return dateFns.format(dateFns.addDays(weekStartDate, weekday) , 'YYYY-MM-DD');
 }
 
 function getZeroDayReason(targetDate, weekday, zeroDays) {  //@uses()
@@ -140,7 +176,7 @@ function getZeroDayReason(targetDate, weekday, zeroDays) {  //@uses()
             const endDate = (dateRange.split(':')[1] || startDate).trim();
             if(startDate <= formattedDate && formattedDate <= endDate) {
                 ret = reason;
-                console.log(formattedDate, ' is ', reason);
+                // console.log(formattedDate, ' is ', reason);
             }
         });
     });
@@ -148,13 +184,5 @@ function getZeroDayReason(targetDate, weekday, zeroDays) {  //@uses()
     return ret;
 }
 
-function getIntendedHours() { //@uses()
-    const intendedHours = {};
-    weekdayNames.forEach( (day, i) =>  {
-        intendedHours[day] = getDayIntendedHours(targetDate, i, cfg.defaultHours[day], cfg.exceptionalHours);
-    });
-    return intendedHours;
-}
 
-
-module.exports = { readConfig, getExecConfig, getExecTargetDate };
+module.exports = { readConfig, getWeekExecConfig, getExecTargetDate };

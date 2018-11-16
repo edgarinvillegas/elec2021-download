@@ -1,4 +1,4 @@
-const { readConfig, getExecConfig, getExecTargetDate } = require('./readConfig');
+const { readConfig, getWeekExecConfig, getExecTargetDate } = require('./readConfig');
 const createBrowserAndPage = require('./lib/createBrowserAndPage');
 const handleException = require('./exceptionHandler');
 
@@ -16,11 +16,11 @@ async function main(){
     try {
         targetDate = getExecTargetDate(rawCfg.week);
         console.log('targetDate: ', targetDate);
-        const execConfig = getExecConfig(rawCfg, targetDate);
+        const weekExecConfig = getWeekExecConfig(rawCfg, targetDate);
         await login(page, credentials.coxEmail, credentials.coxPassword);
         await fillTimesheet({
             page,
-            cfg: execConfig,
+            cfg: weekExecConfig,
             credentials,
             targetDate
         });
