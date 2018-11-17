@@ -21,7 +21,8 @@ async function main(){
             page,
             cfg: weekExecConfig,
             credentials,
-            targetDate
+            targetDate,
+            promptForConfirmation: !!weekExecConfig.promptForConfirmation
         });
         await browser.close();
     } catch (exc) {

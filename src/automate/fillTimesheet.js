@@ -1,13 +1,14 @@
 const dateFns = require('date-fns');
-// console.table || require('console.table');
-delete console.table;
+const Confirm = require('prompt-confirm');
+
+delete console.table;      // Node 8 console.table is noop.
 require('console.table');
 
 const weekdayNames = require('../constants').weekdayNames;
 const logger = require('../lib/logger');
 const sendMail$ = require('../lib/sendMail');
 
-async function fillTimesheet({ page, cfg, credentials, targetDate }){
+async function fillTimesheet({ page, cfg, credentials, targetDate, promptForConfirmation = false }){
     // Go to correct date. TODO: analyze supporting future targetDate
     {
         const targetDateText = getWeekPickerText(targetDate);
@@ -34,7 +35,7 @@ async function fillTimesheet({ page, cfg, credentials, targetDate }){
             if(cfg.sendEmailIfAlreadySubmitted) {
                 logger.log(msg);
             } else {
-                await showTimesheetTable(page);
+                await showTimesheetSummary(page, cfg, targetDate);
                 throw new Error(msg);
             }
         }
@@ -65,19 +66,55 @@ async function fillTimesheet({ page, cfg, credentials, targetDate }){
 
 
             logger.log('Ready to submit...');
+            promptForConfirmation && console.log('Please review the data before submission: ');
+            await showTimesheetSummary(page, cfg, targetDate, true);
+
+            if(promptForConfirmation) {
+                const confirmPrompt = new Confirm('Do you want to continue?');
+                const confirmed = await confirmPrompt.run();
+
+                if(!confirmed) {
+                    logger.log('Cancelled.');
+                    process.exit(0);
+                }
+            }
+
             // return; // Uncomment this to avoid submission
 
             await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
             await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
             logger.log('Submitted succesfully.');
+        } else {
+            await showTimesheetSummary(page, cfg, targetDate, true);
         }
-        await showTimesheetTable(page);
         const finalScreenshot = 'submitted.png';
         await page.screenshot({path: finalScreenshot});
+
+        /*const confirmPrompt = new Confirm('Do you want to continue?');
+        const confirmed = await confirmPrompt.run();
+
+        if(!confirmed) {
+            logger.log('Cancelled.');
+            process.exit(0);
+        }*/
+
         logger.log(`Sending success emails...`);
         await sendSuccessEmail$(credentials.mojixEmail, credentials.mojixPassword, cfg.emailSettings, targetDate, [`./${finalScreenshot}`]);
         logger.log('SUCCESS.');
     }
+}
+
+async function showTimesheetSummary(page, cfg, targetDate, includeEmailDetails = false) {
+    console.log('\nWeek: ', getWeekPickerText(targetDate));
+    if(includeEmailDetails) {
+        const es = cfg.emailSettings;
+        console.log(`To: ${es.to.join(',')}`);
+        es.cc.length && console.log(`CC: ${es.cc.join(',')}`);
+        es.cc.length && console.log(`BCC: ${es.bcc.join(',')}`);
+        console.log(`Subject: ${getSuccessEmailSubject(cfg.emailSettings, targetDate)}`)
+    }
+    console.log('');
+    await showTimesheetTable(page);
 }
 
 async function showTimesheetTable(page) {
@@ -223,17 +260,22 @@ async function logRow(page, projectId, categoryLabel, intendedHours, notes) {
     // await page.screenshot({path: '05 Timecard added.png'});
 }
 
+function getSuccessEmailSubject(emailSettings, targetDate){
+    const saturdayDate = dateFns.format(dateFns.endOfWeek(targetDate), 'YYYY-MM-DD');
+    return emailSettings.subjectTemplate.replace('{weekendDate}', saturdayDate);
+}
+
 function sendSuccessEmail$(mojixEmail, mojixPassword, emailSettings, targetDate, files) {
     //logger.log('emailSettings: ', emailSettings);
-    const saturdayDate = dateFns.format(dateFns.endOfWeek(targetDate), 'YYYY-MM-DD');
+
     return sendMail$({
         user: mojixEmail,
         pass: mojixPassword,
         to:   emailSettings.to,
         cc: emailSettings.cc,
         bcc: emailSettings.bcc,            // almost any option of `nodemailer` will be passed to it
-        subject: emailSettings.subjectTemplate.replace('{weekendDate}', saturdayDate),
-        text:    `Timesheet for ${saturdayDate} has been submitted succesfully.`,         // Plain text
+        subject: getSuccessEmailSubject(emailSettings, targetDate),
+        text:    `Timesheet has been submitted succesfully.`,         // Plain text
         //html:    '<b>html text</b>'            // HTML
         files: files,
     });

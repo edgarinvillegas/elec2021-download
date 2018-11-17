@@ -11,6 +11,7 @@
     "date-fns": "^1.29.0",
     "gmail-send": "^1.2.14",
     "nconf": "^0.10.0",
+    "prompt-confirm": "^2.0.4",
     "puppeteer": "^1.9.0"
   }
 }
