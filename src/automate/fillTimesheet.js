@@ -22,46 +22,51 @@ async function fillTimesheet({ page, cfg, credentials, targetDate }){
         }
     }
 
+    const timesheetState = (await page.getTextJq('.tcp-header .ts-data:contains(State) .ts-val')).toUpperCase();
     // Check timesheet status. If not PENDING, abort.
     {
         //It can be PENDING, SUBMITED, PROCESSED
-        const timesheetState = (await page.getTextJq('.tcp-header .ts-data:contains(State) .ts-val')).toUpperCase();
         if(timesheetState !== 'PENDING') {
-            // TODO: analyze if this should throw
-            throw new Error(`No need to submit timesheet "${getWeekPickerText(targetDate)}" because it's in ${timesheetState} state`);
+            const msg = `No need to submit timesheet "${getWeekPickerText(targetDate)}" because it's in ${timesheetState} state`;
+            if(cfg.sendEmailIfAlreadySubmitted) {
+                logger.log(msg);
+            } else {
+                throw new Error(msg);
+            }
         }
     }
 
     // Timesheet filling
     {
-        logger.log(`Filling timesheet...`);
-        // Just in case wait for the project cards container
-        await page.waitForSelector('.cards-panel-body');
-        await page.waitForSelector('#tc-grid');
+        if(timesheetState == 'PENDING') {
+            logger.log(`Filling timesheet...`);
+            // Just in case wait for the project cards container
+            await page.waitForSelector('.cards-panel-body');
+            await page.waitForSelector('#tc-grid');
 
-        await logRows(page, cfg.projectHours, cfg.workingDays);
+            await logRows(page, cfg.projectHours, cfg.workingDays);
 
 
-        await page.waitFor(2000); // Just in case
-        const totalHoursLogged = parseInt(await page.getTextJq('.tcp-header .ts-data:contains(Total) .ts-val')) || 0;
+            await page.waitFor(2000); // Just in case
+            const totalHoursLogged = parseInt(await page.getTextJq('.tcp-header .ts-data:contains(Total) .ts-val')) || 0;
 
-        const expectedTotal = Object.values(cfg.projectHours)
-            .map( prjData => prjData.hours.reduce( (t, h) => t+h) )    //Total by row
-            .reduce( (t, rowTotal ) => t + rowTotal )
-        ;
-        if(totalHoursLogged > expectedTotal) {
-            throw new Error(`The intended total hours were ${expectedTotal}, but finally you have ${totalHoursLogged}.`+
-                ` This is because you already had projects logged. Please remove them manually and retry`)
+            const expectedTotal = Object.values(cfg.projectHours)
+                .map( prjData => prjData.hours.reduce( (t, h) => t+h) )    //Total by row
+                .reduce( (t, rowTotal ) => t + rowTotal )
+            ;
+            if(totalHoursLogged > expectedTotal) {
+                throw new Error(`The intended total hours were ${expectedTotal}, but finally you have ${totalHoursLogged}.`+
+                    ` This is because you already had projects logged. Please remove them manually and retry`)
+            }
+
+
+            logger.log('Ready to submit...');
+            // return; // Uncomment this to avoid submission
+
+            await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
+            await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
+            logger.log('Submitted succesfully.');
         }
-
-
-        logger.log('Ready to submit...');
-        // return; // Uncomment this to avoid submission
-
-        await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
-        await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
-        logger.log('Submitted succesfully.');
-        //
         const finalScreenshot = 'submitted.png';
         await page.screenshot({path: finalScreenshot});
         logger.log(`Sending success emails...`);
