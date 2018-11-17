@@ -15,7 +15,6 @@ async function main(){
     let targetDate;
     try {
         targetDate = getExecTargetDate(rawCfg.week);
-        console.log('targetDate: ', targetDate);
         const weekExecConfig = getWeekExecConfig(rawCfg, targetDate);
         await login(page, credentials.coxEmail, credentials.coxPassword);
         await fillTimesheet({

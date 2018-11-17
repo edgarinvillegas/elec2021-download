@@ -114,7 +114,7 @@ function getWeekExecConfig (rawCfg, targetDate) {
                     const reason = dayReasons[i];
                     // If there's a zeroDayReason for the day, make it 0, otherwise keep value.
                     hours[i] = reason === null ? hours[i] : 0;
-                    if(reason !== null) {
+                    if(reason !== null && reason !== '') {
                         zeroDayNotes.push(`${day.toUpperCase()}: ${reason}`);
                     }
                 });

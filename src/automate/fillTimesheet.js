@@ -1,4 +1,7 @@
 const dateFns = require('date-fns');
+// console.table || require('console.table');
+delete console.table;
+require('console.table');
 
 const weekdayNames = require('../constants').weekdayNames;
 const logger = require('../lib/logger');
@@ -31,6 +34,7 @@ async function fillTimesheet({ page, cfg, credentials, targetDate }){
             if(cfg.sendEmailIfAlreadySubmitted) {
                 logger.log(msg);
             } else {
+                await showTimesheetTable(page);
                 throw new Error(msg);
             }
         }
@@ -67,11 +71,40 @@ async function fillTimesheet({ page, cfg, credentials, targetDate }){
             await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
             logger.log('Submitted succesfully.');
         }
+        await showTimesheetTable(page);
         const finalScreenshot = 'submitted.png';
         await page.screenshot({path: finalScreenshot});
         logger.log(`Sending success emails...`);
         await sendSuccessEmail$(credentials.mojixEmail, credentials.mojixPassword, cfg.emailSettings, targetDate, [`./${finalScreenshot}`]);
         logger.log('SUCCESS.');
+    }
+}
+
+async function showTimesheetTable(page) {
+    try{
+        await page.waitForSelector('#tc-grid tbody tr');
+        const tableDataObj = await page.evaluate( () => {
+            const $ = window.jQuery;
+            // Array
+            const headerData = $('#tc-grid thead th').map( (i, cell) => $(cell).text().trim() ).get();
+
+            // Array of arrays
+            const tableData = $('#tc-grid tbody tr').get()
+                .map( row =>
+                    $(row).find('td').map( (i, cell) => $(cell).text().trim() ).get()
+                );
+
+            // Array of objects (keys are formatted titles)
+            const tableDataObj = tableData.map( rowData => {
+                const rowObj = {};
+                headerData.forEach( (title, i) => rowObj[title] = rowData[i] );
+                return rowObj;
+            });
+            return tableDataObj;
+        });
+        console.table(tableDataObj);
+    } catch(exc) {
+        logger.log('Could not show timesheet table with console.table:\n', exc.message);
     }
 }
 
