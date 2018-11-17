@@ -16,6 +16,18 @@ async function login(page, coxEmail, coxPassword) {
 
         // Submit the form
         await page.click('input[type="submit"]');
+
+        try {
+            //We wait for the timesheet page if login was succesful
+            await page.waitForSelector('.navpage-layout');
+        } catch (exc) {     //Most likely it means there was a login error
+            // We get the error message from UI. If not present, rethrow
+            const errorMsg = await page.evaluate( () => {
+                const errorElement = window.document.querySelector('.okta-form-infobox-error');
+                return errorElement ? errorElement.innerText.trim() : null;
+            });
+            throw errorMsg ? new Error(`"${errorMsg}"\nPlease check your cox credentials`) : exc;
+        }
     }
 
     // Go to timesheet page
