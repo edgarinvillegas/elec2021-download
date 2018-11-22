@@ -1,4 +1,5 @@
-const { readConfig, getWeekExecConfig, getExecTargetDate } = require('./readConfig');
+const { readConfig, getExecTargetDate } = require('./readConfig');
+const getWeekExecConfig = require('./getWeekExecConfig');
 const createBrowserAndPage = require('./lib/createBrowserAndPage');
 const handleException = require('./exceptionHandler');
 
@@ -7,15 +8,15 @@ const fillTimesheet = require('./automate/fillTimesheet');
 
 async function main(){
     // Load configuration from file.
-    const rawCfg = readConfig();
-    const credentials = rawCfg.credentials;
+    const castCfg = readConfig();
+    const credentials = castCfg.credentials;
     const headless = true;
     // Load the page
     const { page, browser } = await createBrowserAndPage(headless);
     let targetDate;
     try {
-        targetDate = getExecTargetDate(rawCfg.week);
-        const weekExecConfig = getWeekExecConfig(rawCfg, targetDate);
+        targetDate = getExecTargetDate(castCfg.week);
+        const weekExecConfig = getWeekExecConfig(castCfg, targetDate);
         await login(page, credentials.coxEmail, credentials.coxPassword);
         await fillTimesheet({
             page,
@@ -27,7 +28,7 @@ async function main(){
         await browser.close();
     } catch (exc) {
         const sendExceptionEmail = true;    // Set to false during development.
-        await handleException(exc, browser, page, targetDate || new Date(), rawCfg, credentials, headless, sendExceptionEmail);
+        await handleException(exc, browser, page, targetDate || new Date(), castCfg, credentials, headless, sendExceptionEmail);
     }
 }
 

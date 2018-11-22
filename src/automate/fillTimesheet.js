@@ -26,7 +26,7 @@ async function fillTimesheet({ page, cfg, credentials, targetDate, promptForConf
         }
     }
 
-    const timesheetState = (await page.getTextJq('.tcp-header .ts-data:contains(State) .ts-val')).toUpperCase();
+    const timesheetState = await getTimesheetState(page);
     // Check timesheet status. If not PENDING, abort.
     {
         //It can be PENDING, SUBMITED, PROCESSED
@@ -60,6 +60,7 @@ async function fillTimesheet({ page, cfg, credentials, targetDate, promptForConf
                 .reduce( (t, rowTotal ) => t + rowTotal )
             ;
             if(totalHoursLogged > expectedTotal) {
+                await showTimesheetSummary(page, cfg, targetDate);
                 throw new Error(`The intended total hours were ${expectedTotal}, but finally you have ${totalHoursLogged}.`+
                     ` This is because you already had projects logged. Please remove them manually and retry`)
             }
@@ -104,45 +105,51 @@ async function fillTimesheet({ page, cfg, credentials, targetDate, promptForConf
     }
 }
 
+async function getTimesheetState(page) {
+    return (await page.getTextJq('.tcp-header .ts-data:contains(State) .ts-val')).toUpperCase()
+}
+
 async function showTimesheetSummary(page, cfg, targetDate, includeEmailDetails = false) {
-    console.log('\nWeek: ', getWeekPickerText(targetDate));
-    if(includeEmailDetails) {
-        const es = cfg.emailSettings;
-        console.log(`To: ${es.to.join(',')}`);
-        es.cc.length && console.log(`CC: ${es.cc.join(',')}`);
-        es.cc.length && console.log(`BCC: ${es.bcc.join(',')}`);
-        console.log(`Subject: ${getSuccessEmailSubject(cfg.emailSettings, targetDate)}`)
+    try{
+        const timesheetState = await getTimesheetState(page);
+        console.log('\nWeek: ', getWeekPickerText(targetDate), ' | ', 'State: ', timesheetState);
+        if(includeEmailDetails) {
+            const es = cfg.emailSettings;
+            console.log(`To: ${es.to.join(',')}`);
+            es.cc.length && console.log(`CC: ${es.cc.join(',')}`);
+            es.cc.length && console.log(`BCC: ${es.bcc.join(',')}`);
+            console.log(`Subject: ${getSuccessEmailSubject(cfg.emailSettings, targetDate)}`)
+        }
+        // console.log('');
+        await showTimesheetTable(page);
+    } catch(exc) {
+        logger.log('Could not show timesheet summary with console.table:\n', exc.message);
     }
-    console.log('');
-    await showTimesheetTable(page);
 }
 
 async function showTimesheetTable(page) {
-    try{
-        await page.waitForSelector('#tc-grid tbody tr');
-        const tableDataObj = await page.evaluate( () => {
-            const $ = window.jQuery;
-            // Array
-            const headerData = $('#tc-grid thead th').map( (i, cell) => $(cell).text().trim() ).get();
+    await page.waitForSelector('#tc-grid tbody tr');
+    const tableDataObj = await page.evaluate( () => {
+        const $ = window.jQuery;
+        // Array
+        const headerData = $('#tc-grid thead th').map( (i, cell) => $(cell).text().trim() ).get();
 
-            // Array of arrays
-            const tableData = $('#tc-grid tbody tr').get()
-                .map( row =>
-                    $(row).find('td').map( (i, cell) => $(cell).text().trim() ).get()
-                );
+        // Array of arrays
+        const tableData = $('#tc-grid tbody tr').get()
+            .map( row =>
+                $(row).find('td').map( (i, cell) => $(cell).text().trim() ).get()
+            );
 
-            // Array of objects (keys are formatted titles)
-            const tableDataObj = tableData.map( rowData => {
-                const rowObj = {};
-                headerData.forEach( (title, i) => rowObj[title] = rowData[i] );
-                return rowObj;
-            });
-            return tableDataObj;
+        // Array of objects (keys are formatted titles)
+        const tableDataObj = tableData.map( rowData => {
+            const rowObj = {};
+            headerData.forEach( (title, i) => rowObj[title] = rowData[i] );
+            delete rowObj['Actions'];   // We don't care about this column
+            return rowObj;
         });
-        console.table(tableDataObj);
-    } catch(exc) {
-        logger.log('Could not show timesheet table with console.table:\n', exc.message);
-    }
+        return tableDataObj;
+    });
+    console.table(tableDataObj);
 }
 
 async function getRowAlreadyLoggedHours(page, projectId, categoryLabel) {
@@ -210,6 +217,7 @@ async function logRows(page, projectHours, workingDays) {
                 logger.log(`Hours already logged: ${JSON.stringify(rowAlreadyLoggedHours)}. Logging remaining: ${JSON.stringify(remainingHours)}...`);
             }
             if(Object.values(remainingHours).some( h => h < 0)){
+                await showTimesheetSummary(page, cfg, targetDate);
                 throw new Error('Cannot log negative hours. Please fix current logged hours manually');
             } else {
                 await logRow(page, projectId, categoryLabel, remainingHours, notes);
