@@ -11,6 +11,11 @@ const logger = require('../lib/logger');
  * @returns {*}
  */
 function readConfig() {
+    if(process.argv.some(val => val === '--help')) {
+        console.log('Please visit https://github.com/edgarinvillegas/cox-timesheet');
+        process.exit(0);
+    }
+
     logger.log('Reading configuration...');
     // const missingConfFiles = [];
     const old_config_file = './config.json';
