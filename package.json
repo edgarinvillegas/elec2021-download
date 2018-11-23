@@ -3,7 +3,9 @@
   "version": "0.2.0",
   "description": "Autofiller for Cox timesheet",
   "main": "index.js",
-  "bin": { "cox-timesheet": "index.js" },
+  "bin": {
+    "cox-timesheet": "./index.js"
+  },
   "preferGlobal": true,
   "repository": "https://github.com/edgarinvillegas/cox-timesheet",
   "author": "edgarinvillegas@hotmail.com",
