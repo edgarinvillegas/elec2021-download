@@ -24,6 +24,9 @@ function getConfigValidationSchema() {
             sendEmailIfAlreadySubmitted: yup.boolean().default(false),
             projectHours: getProjectHoursSchema()
         }),
+        promptForConfirmation: yup.boolean().transform( (currValue, originalValue) => {
+            return !['false', '0', 0, 'no', 'off'].includes(String(originalValue).toLowerCase());
+        }),
         zeroDays: getZeroDaysSchema(),
         weekOverrides: getWeekOverridesSchema()
     });

@@ -24,7 +24,7 @@ async function main(){
             credentials,
             targetDate,
             // TODO: make this overridable per week
-            promptForConfirmation: !!castCfg.promptForConfirmation
+            promptForConfirmation: castCfg.promptForConfirmation
         });
         await browser.close();
     } catch (exc) {

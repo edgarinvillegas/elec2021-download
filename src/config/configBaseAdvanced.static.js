@@ -33,6 +33,20 @@ const config = {
 
         }
     },
+
+    promptForConfirmation: false,
+
+    /*
+    * These dates will be marked as 0 (overriding defaults) and will be
+    * automatically added to Notes, like "Monday: Holiday | Thursday: PTO"
+    */
+    zeroDays: {
+        "Holiday": ['2018-06-06', '2018-11-02', '2018-12-25', '2019-01-01'],
+        "PTO": [],
+        "Sick leave": [],
+        "Put here your custom reason for zeroday": []
+    },
+
     //weekOverrides is used for weeks different than the default. Mainly used for holidays, vacations, etc
     //(Dates outside config.week won't be processed, so you can fill in advance without problems.)
     weekOverrides: {
