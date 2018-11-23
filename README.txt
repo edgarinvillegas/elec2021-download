@@ -41,6 +41,9 @@ To edit config.js, check the following example:
             'PRJ0020000/BUG': [ 5, 5, 5, 5, 5 ]
         }
     },
+    // This flag is to ask the user for confirmation before submission. Set to false if running with cronjob or if you want to run and forget
+    promptForConfirmation: true,
+
     /*
     * These dates will be marked as 0 (overriding defaults) and will be
     * automatically added to Notes, like "Monday: Holiday | Thursday: PTO"
@@ -122,7 +125,10 @@ So, it's unlikely  cox-timesheet will support pdf attachment.
 cox-timesheet doesn't store or send any password. You can check the code, that's the warranty.
 
 If you don't feel comfortable leaving your passwords in the config file, you can also provide them as command line arguments or environment variables.
-Documentation coming soon.
+This project uses nconf, which allows you to send command line parameters to override configuration, for example:
+node index.js --credentials:coxPassword=myCoxPassword123 --credentials:coxPassword=myCoxPassword123
+
+You can also set them as environment variables.
 
 3) Why isn't it a downloadable npm module?
 That's coming soon.

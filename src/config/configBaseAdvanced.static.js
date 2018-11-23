@@ -33,7 +33,7 @@ const config = {
 
         }
     },
-
+    // This flag is to ask the user for confirmation before submission. Set to false if running with cronjob or if you want to run and forget
     promptForConfirmation: false,
 
     /*

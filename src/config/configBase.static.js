@@ -26,6 +26,8 @@ const config = {
             'PRJ0020000/BUG': [ 5, 5, 5, 5, 5 ]
         }
     },
+
+    // This flag is to ask the user for confirmation before submission. Set to false if running with cronjob or if you want to run and forget
     promptForConfirmation: true,
     /*
     * These dates will be marked as 0 (overriding defaults) and will be
