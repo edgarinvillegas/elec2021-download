@@ -46,12 +46,18 @@ function readConfig() {
     const configJsObj = require(conf_file_fullpath);
 
     nconf.argv()
-        // .env()
+        .env()
         // .file({ file: conf_file })
         //.defaults(require('../config.js'));
         .defaults(configJsObj);
 
     const rawCfg = nconf.get(null);
+    // Remove unneeded keys. Needed because environment variables are too many.
+    Object.keys(rawCfg).forEach(key => {
+        const whitelist = ['credentials', 'week', 'defaults', 'promptForConfirmation', 'zeroDays', 'weekOverrides'];
+        if(!whitelist.includes(key)) delete rawCfg[key];
+    });
+
     return transformAndValidate(rawCfg);    //Will log and exit if validation errors are found
 }
 
