@@ -49,7 +49,7 @@ async function fillTimesheet({ page, cfg, credentials, targetDate, promptForConf
             await page.waitForSelector('.cards-panel-body');
             await page.waitForSelector('#tc-grid');
 
-            await logRows(page, cfg.projectHours, cfg.workingDays);
+            await logRows(page, cfg, targetDate, cfg.projectHours, cfg.workingDays);
 
 
             await page.waitFor(2000); // Just in case
@@ -65,7 +65,6 @@ async function fillTimesheet({ page, cfg, credentials, targetDate, promptForConf
                     ` This is because you already had projects logged. Please remove them manually and retry`)
             }
 
-
             logger.log('Ready to submit...');
             promptForConfirmation && console.log('Please review the data before submission: ');
             await showTimesheetSummary(page, cfg, targetDate, true);
@@ -80,7 +79,7 @@ async function fillTimesheet({ page, cfg, credentials, targetDate, promptForConf
                 }
             }
 
-            // return; // Uncomment this to avoid submission
+            // console.log('About to submit...'); return; // Uncomment this to avoid submission
 
             await page.triggerJqEvent('.sp-row-content button.btn-primary:contains(Submit)', 'click');
             await page.waitForJqSelector('.sp-row-content a:contains(PDF)');
@@ -113,15 +112,24 @@ async function showTimesheetSummary(page, cfg, targetDate, includeEmailDetails =
     try{
         const timesheetState = await getTimesheetState(page);
         console.log('\nWeek: ', getWeekPickerText(targetDate), ' | ', 'State: ', timesheetState);
-        if(includeEmailDetails) {
-            const es = cfg.emailSettings;
-            console.log(`To: ${es.to.join(',')}`);
-            es.cc.length && console.log(`CC: ${es.cc.join(',')}`);
-            es.cc.length && console.log(`BCC: ${es.bcc.join(',')}`);
-            console.log(`Subject: ${getSuccessEmailSubject(cfg.emailSettings, targetDate)}`)
-        }
         // console.log('');
         await showTimesheetTable(page);
+        (function logNotes(projectHours){
+            const uniqueNotes = Object.entries(projectHours)
+                .map( ([key, prjData]) => prjData.notes ).sort()
+                .filter( (note, i, allNotes) => note && note !== allNotes[i+1] )
+                .map( note => `"${note}"`);
+            uniqueNotes.length && console.log(`Notes: ${uniqueNotes.join(' | ')}`)
+        })(cfg.projectHours);
+        if(includeEmailDetails) {
+            const es = cfg.emailSettings;
+            console.log(`Email subject: ${getSuccessEmailSubject(cfg.emailSettings, targetDate)}`)
+            const recipientsTexts = [`To: ${es.to.join(',')}`];
+            if(es.cc.length) recipientsTexts.push(`CC: ${es.cc.join(', ')}`);
+            if(es.bcc.length) recipientsTexts.push(`BCC: ${es.bcc.join(', ')}`);
+            console.log(recipientsTexts.join('  |  '));
+            console.log('');
+        }
     } catch(exc) {
         logger.log('Could not show timesheet summary with console.table:\n', exc.message);
     }
@@ -164,7 +172,7 @@ async function getRowAlreadyLoggedHours(page, projectId, categoryLabel) {
     return alreadyLoggedHours.length > 0 ? alreadyLoggedHours : weekdayNames.map( () => 0 );
 }
 
-async function logRows(page, projectHours, workingDays) {
+async function logRows(page, cfg, targetDate, projectHours, workingDays) {
     // Aux variables for the request interceptor closure
     let auxHoursToLog = null;
     let auxNotes = null;
@@ -238,7 +246,12 @@ async function logRow(page, projectId, categoryLabel, intendedHours, notes) {
     const addLineBtnSelector = `${projectCardSelector} button:contains(Add Line Item)`;
 
     // Click on the Add Line button
-    await page.waitForJqSelector(addLineBtnSelector);
+    try{
+        await page.waitForJqSelector(addLineBtnSelector);
+    } catch(exc) {
+        throw new Error(`Project ${projectId} not found. Please add it in the time portal and retry.`);
+    }
+
     await page.triggerJqEvent(addLineBtnSelector, 'click');
     // await page.screenshot({path: '03 Add Line clicked.png'});
 

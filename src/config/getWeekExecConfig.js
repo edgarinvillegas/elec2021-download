@@ -1,5 +1,7 @@
 const dateFns = require('date-fns');
 
+const { weekdayNames } = require('../constants');
+
 function normalizeWeekConfig(baseWeekConfig){
     const weekExecConfig =  JSON.parse(JSON.stringify(baseWeekConfig));
 
@@ -38,8 +40,9 @@ function getWeekExecConfig (rawCfg, targetDate) {
     (function processZeroDays(){
         const projectHours = weekExecConfig.projectHours;
         if(rawCfg.zeroDays) {
+            const indexDelta = weekdayNames.indexOf(weekExecConfig.workingDays[0]); // TODO: improve this
             const dayReasons = weekExecConfig.workingDays.map( (day, i) =>  {
-                return getZeroDayReason(targetDate, i, rawCfg.zeroDays);
+                return getZeroDayReason(targetDate, i + indexDelta, rawCfg.zeroDays);
             });
 
             Object.entries(projectHours).forEach( ([prj, { hours, notes }]) => {
@@ -54,7 +57,7 @@ function getWeekExecConfig (rawCfg, targetDate) {
                     }
                 });
                 if(zeroDayNotes.length) {
-                    projectHours[prj].notes += '\n' + zeroDayNotes.join(' | ');
+                    projectHours[prj].notes += (notes ? '\n' : '') + zeroDayNotes.join(' | ');
                 }
             });
         }
@@ -108,6 +111,7 @@ function getFormattedDateByWeekday(targetDate, weekday) {   //@uses()
 
 function getZeroDayReason(targetDate, weekday, zeroDays) {  //@uses()
     const formattedDate = getFormattedDateByWeekday(targetDate, weekday);
+    // console.log('formattedDate', formattedDate);
     let ret = null;
     Object.entries(zeroDays).forEach( ([ reason, dates ]) => {
         // console.log('---- ', reason);
