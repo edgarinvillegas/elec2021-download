@@ -13,56 +13,58 @@ function getConfigValidationSchema() {
             mojixPassword: yup.string().required()
         }),
         week: yup.number().max(0).default(0),
-        defaults: getWeekSchema().required(),
+        defaults: yup.object().required().shape({
+            emailSettings: yup.object().shape({
+                to: getEmailRecipientSchema().required(), //To disallow []
+                cc: getEmailRecipientSchema(),
+                bcc: getEmailRecipientSchema(),
+                subjectTemplate: yup.string().default('{weekendDate} Timesheet').required()
+            }),
+            workingDays: yup.array().of(yup.string().oneOf(weekdayNames)).default(weekdayNames.slice(1,6)).required(),
+            sendEmailIfAlreadySubmitted: yup.boolean().default(false),
+            projectHours: getProjectHoursSchema()
+        }),
         zeroDays: getZeroDaysSchema(),
-        //weekOverrides: getWeekOverridesSchema()
+        weekOverrides: getWeekOverridesSchema()
     });
     return schema;
 }
-
-function getWeekSchema() {
-    const emailRecipentSchema = getEmailRecipientSchema();
+// Not reusing the defaults one because this doesn't have .required()s
+function getSingleWeekOverrideSchema() {
     return yup.object().shape({
         emailSettings: yup.object().shape({
-            to: emailRecipentSchema.required(), //To disallow []
-            cc: emailRecipentSchema,
-            bcc: emailRecipentSchema,
-            subjectTemplate: yup.string().default('{weekendDate} Timesheet').required()
+            to: getEmailRecipientSchema(),
+            cc: getEmailRecipientSchema(),
+            bcc: getEmailRecipientSchema(),
+            subjectTemplate: yup.string()
         }),
-        workingDays: yup.array().of(yup.string().oneOf(weekdayNames)).default(weekdayNames.slice(1,6)).required(),
-        sendEmailIfAlreadySubmitted: yup.boolean().default(false),
+        workingDays: yup.array().of(yup.string().oneOf(weekdayNames)),
+        sendEmailIfAlreadySubmitted: yup.boolean(),
         projectHours: getProjectHoursSchema()
-    });
+    })
 }
 
 function getWeekOverridesSchema() {
     // Object with dynamic keys sample: https://runkit.com/bogdansoare/59cfd9ac1de3eb0012c4a436
     return yup.lazy(weekOverrides => yup.object().shape(
-        objectMap(weekOverrides, (prjData, prjId) => {
-            return yup.object().shape({
-                notes: yup.string(),
-                hours: yup.array().of(yup.number().min(0))
+        objectMap(weekOverrides, (weekOverride, dateRange) => {
+            return getSingleWeekOverrideSchema()
+            .test('valid-dateRange', '${path} date is invalid. Format must be YYYY-MM-DD, like "2018-09-22", or a range like "2018-09-22:2018-10-07"', weekOverride => {
+                return isDateRangeValid(dateRange);
             })
-            .test('valid-project-id', '${path} key is not valid. Format must be in format PROJECT_ID/CATEGORY', prjData => {
-                return /.+\/.+/.test(prjId);
-            })
-            .transform((currValue, originalValue) => ({
-                notes: originalValue.notes,
-                hours: Array.isArray(originalValue) ? originalValue : originalValue.hours
-            }));
         })
     ));
 }
 
 function getEmailRecipientSchema() {
-    function normalizeToArray(maybeArray){
+    function normalizeElementToArray(maybeArray){
         if(Array.isArray(maybeArray)) return maybeArray;
-        if(maybeArray === undefined) return [];
+        if(maybeArray === undefined) return maybeArray;
         return [maybeArray];
     }
     // Useful when a string is supplied as recipient (instead of array)
     return yup.array().of(yup.string().email().required())
-        .transform( (currValue, origValue) => normalizeToArray(origValue) );
+        .transform( (currValue, origValue) => normalizeElementToArray(origValue) );
 }
 
 function getZeroDaysSchema(){
@@ -76,15 +78,20 @@ function getZeroDaysSchema(){
     */
     return yup.lazy(zeroDays => yup.object().shape(
         objectMap(zeroDays, (datesList, reason) => {
-            const errorMessage = '${path} date is invalid. Format must be YYYY-MM-DD, like "2018-09-22", or a range like "2018-09-22:2018-10-07"';
-            const dateRangeSchema = yup.string().required().test('valid-daterange', errorMessage, dateRange => {
-                const dateStart = dateRange.split(':')[0];
-                const dateEnd = dateRange.split(':')[1] || dateStart;
-                return dateFns.isValid(new Date(dateStart)) && dateFns.isValid(new Date(dateEnd));
-            });
-            return yup.array().of(dateRangeSchema);
+            return yup.array().of(getDateRangeSchema());
         })
     ));
+}
+
+function isDateRangeValid(dateRange) {
+    const dateStart = dateRange.split(':')[0];
+    const dateEnd = dateRange.split(':')[1] || dateStart;
+    return dateFns.isValid(new Date(dateStart)) && dateFns.isValid(new Date(dateEnd));
+}
+
+function getDateRangeSchema() {
+    const errorMessage = '${path} date is invalid. Format must be YYYY-MM-DD, like "2018-09-22", or a range like "2018-09-22:2018-10-07"';
+    return yup.string().required().test('valid-daterange', errorMessage, isDateRangeValid);
 }
 
 function getProjectHoursSchema() {
