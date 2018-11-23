@@ -80,7 +80,11 @@ function getConfigValidationSchema() {
             return yup.object().shape({
                 notes: yup.string(),
                 hours: yup.array().of(yup.number().min(0))
-            }).transform((currValue, originalValue) => ({
+            })
+            .test('valid-project-id', '${path} key is not valid. Format must be in format PROJECT_ID/CATEGORY', prjData => {
+                return /.+\/.+/.test(prjId);
+            })
+            .transform((currValue, originalValue) => ({
                 notes: originalValue.notes,
                 hours: Array.isArray(originalValue) ? originalValue : originalValue.hours
             }));
