@@ -74,6 +74,19 @@ function getConfigValidationSchema() {
     const emailRecipentSchema = yup.array().of(yup.string().email().required())
         .transform( (currValue, origValue) => normalizeToArray(origValue) );
 
+    // Object with dynamic keys sample: https://runkit.com/bogdansoare/59cfd9ac1de3eb0012c4a436
+    const projectHoursSchema = yup.lazy(projectHours => yup.object().shape(
+        objectMap(projectHours, (prjData, prjId) => {
+            return yup.object().shape({
+                notes: yup.string(),
+                hours: yup.array().of(yup.number().min(0))
+            }).transform((currValue, originalValue) => ({
+                notes: originalValue.notes,
+                hours: Array.isArray(originalValue) ? originalValue : originalValue.hours
+            }));
+        })
+    ))
+
     const schema = yup.object().required().shape({
         credentials: yup.object().shape({
             coxEmail: yup.string().email().required(),
@@ -91,9 +104,13 @@ function getConfigValidationSchema() {
             }),
             workingDays: yup.array().of(yup.string().oneOf(weekdayNames)).default(weekdayNames.slice(1,6)).required(),
             sendEmailIfAlreadySubmitted: yup.boolean().default(false),
+            projectHours: projectHoursSchema,
             /*projectHours: yup.object().required().transform((currValue, origValue) => {
                 return normalizeProjectHours(origValue)
-            }).shape()*/
+            }).test('is-pj-valid', '${path} is not valid', projectHours => {
+                Object.keys(projectHours)
+            })*/
+            //.test('is-jimmy', '${path} is not Jimmy', value => value === 'jimmy');
         }),
     });
     return schema;
