@@ -24,9 +24,9 @@ const config = {
             'PRJ0010000/DEV': [ 2, 2, 2, 2, 2 ],
             'PRJ0020000/SUP': [ 1, 1, 1, 1, 1 ],
             'PRJ0020000/BUG': [ 5, 5, 5, 5, 5 ]
-        },
-        promptForConfirmation: true
+        }
     },
+    promptForConfirmation: true,
     /*
     * These dates will be marked as 0 (overriding defaults) and will be
     * automatically added to Notes, like "Monday: Holiday | Thursday: PTO"

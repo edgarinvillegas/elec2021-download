@@ -1,5 +1,5 @@
-const { readConfig, getExecTargetDate } = require('./readConfig');
-const getWeekExecConfig = require('./getWeekExecConfig');
+const { readConfig, getExecTargetDate } = require('./config/readConfig');
+const getWeekExecConfig = require('./config/getWeekExecConfig');
 const createBrowserAndPage = require('./lib/createBrowserAndPage');
 const handleException = require('./exceptionHandler');
 
@@ -23,7 +23,8 @@ async function main(){
             cfg: weekExecConfig,
             credentials,
             targetDate,
-            promptForConfirmation: !!weekExecConfig.promptForConfirmation
+            // TODO: make this overridable per week
+            promptForConfirmation: !!castCfg.promptForConfirmation
         });
         await browser.close();
     } catch (exc) {
