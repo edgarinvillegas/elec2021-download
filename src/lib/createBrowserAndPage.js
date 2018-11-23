@@ -6,7 +6,7 @@ async function createBrowserAndPage(headless = true, width = 1200, height = 1000
     const browser = await puppeteer.launch({
         headless: headless,
         args: [
-            `--window-size=${ width },${ height }`
+            `--window-size=${ width },${ height }` + (process.platform === 'linux' ? ' --no-sandbox --disable-setuid-sandbox' : '')
         ],
     });
 
