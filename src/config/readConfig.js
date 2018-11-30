@@ -23,14 +23,18 @@ function readConfig() {
         logger.log(`${old_config_file} is deprecated. Please use config.js`);
     }
 
+    let configFileJustCreated = false;
+    let credentialsFileJustCreated = false;
+
     const conf_file ='./config.js';
     const conf_file_fullpath = process.cwd() + '/config.js';
     if( ! fs.existsSync(conf_file) ) {
         // fs.writeFileSync( conf_file, JSON.stringify(conf_defaults, null, 2) );
         const configBaseContents = fs.readFileSync(`${__dirname}/configBase.static.js`, 'utf8');
         fs.writeFileSync( conf_file, configBaseContents );
-        logger.log(`${conf_file} created in the current directory. Please edit it and rerun the application`);
-        process.exit(1);
+        configFileJustCreated = true;
+        logger.log(`${conf_file} created in the current directory.`);
+        // process.exit(1);
     }
 
     // We check if config.js imports credentials file. If so, create the file
@@ -44,9 +48,14 @@ function readConfig() {
             mojixPassword: ''
         };
         fs.writeFileSync( credentials_file, JSON.stringify(defaultCredentials, null, 2) );
-        logger.log(`${credentials_file} created in the current directory. Please *add your credentials* there and rerun the application`);
+        credentialsFileJustCreated = true;
+        logger.log(`${credentials_file} created in the current directory.`);
+    }
+    if(configFileJustCreated || credentialsFileJustCreated) {
+        logger.log(`Please edit the above file(s) and rerun the application`);
         process.exit(1);
     }
+
     // nconf.file({file: conf_file});
     const configJsObj = require(conf_file_fullpath);
 
