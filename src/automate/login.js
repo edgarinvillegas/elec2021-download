@@ -19,7 +19,7 @@ async function login(page, coxEmail, coxPassword) {
 
         try {
             //We wait for the timesheet page if login was succesful
-            await page.waitForSelector('.navpage-layout');
+            await page.waitForSelector('.sp-page-root');
         } catch (exc) {     //Most likely it means there was a login error
             // We get the error message from UI. If not present, rethrow
             const errorMsg = await page.evaluate( () => {
@@ -33,7 +33,7 @@ async function login(page, coxEmail, coxPassword) {
     // Go to timesheet page
     {
         // This will go to another page, wait until it loads
-        await page.waitForSelector('.navpage-layout');
+        await page.waitForSelector('.sp-page-root');
 
         logger.log(`Loading timesheet page...`);
         // The current page has the page we want as framed in. Let's go to it
