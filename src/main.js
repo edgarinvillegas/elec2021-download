@@ -10,14 +10,14 @@ async function main(){
     // Load configuration from file.
     const castCfg = readConfig();
     const credentials = castCfg.credentials;
-    const headless = true;
+    const headless = false;
     // Load the page
     const { page, browser } = await createBrowserAndPage(headless);
     let targetDate;
     try {
         targetDate = getExecTargetDate(castCfg.week);
         const weekExecConfig = getWeekExecConfig(castCfg, targetDate);
-        await login(page, credentials.coxEmail, credentials.coxPassword);
+        await login(page, credentials.coxEmail, credentials.coxPassword, castCfg.mfaType);
         await fillTimesheet({
             page,
             cfg: weekExecConfig,

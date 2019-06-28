@@ -68,7 +68,7 @@ function readConfig() {
     const rawCfg = nconf.get(null);
     // Remove unneeded keys. Needed because environment variables are too many.
     Object.keys(rawCfg).forEach(key => {
-        const whitelist = ['credentials', 'week', 'defaults', 'promptForConfirmation', 'zeroDays', 'weekOverrides'];
+        const whitelist = ['credentials', 'week', 'defaults', 'promptForConfirmation', 'zeroDays', 'weekOverrides', 'mfaType'];
         if(!whitelist.includes(key)) delete rawCfg[key];
     });
 

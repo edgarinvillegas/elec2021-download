@@ -12,6 +12,7 @@ function getConfigValidationSchema() {
             mojixEmail: yup.string().email().required(),
             mojixPassword: yup.string().required()
         }),
+        mfaType: yup.string().default('sms'),
         week: yup.number().max(0).default(0),
         defaults: yup.object().required().shape({
             emailSettings: yup.object().shape({
