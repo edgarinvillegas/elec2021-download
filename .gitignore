@@ -1,3 +1,9 @@
+#
+config*.js
+credentials*.json
+*.png
+**/*.ignore.js
+
 #.gitignore downloaded from: https://github.com/github/gitignore/blob/master/Node.gitignore
 .idea/
 

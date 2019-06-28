@@ -10,7 +10,7 @@ async function main(){
     // Load configuration from file.
     const castCfg = readConfig();
     const credentials = castCfg.credentials;
-    const headless = true;
+    const headless = false;
     // Load the page
     const { page, browser } = await createBrowserAndPage(headless);
     let targetDate;
@@ -28,7 +28,7 @@ async function main(){
         });
         await browser.close();
     } catch (exc) {
-        const sendExceptionEmail = true;    // Set to false during development.
+        const sendExceptionEmail = false;    // Set to false during development.
         await handleException(exc, browser, page, targetDate || new Date(), castCfg, credentials, headless, sendExceptionEmail);
     }
 }
