@@ -10,7 +10,7 @@ async function main(){
     // Load configuration from file.
     const castCfg = readConfig();
     const credentials = castCfg.credentials;
-    const headless = false;
+    const headless = true;
     // Load the page
     const { page, browser } = await createBrowserAndPage(headless);
     let targetDate;
