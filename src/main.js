@@ -17,7 +17,7 @@ async function main(){
     try {
         targetDate = getExecTargetDate(castCfg.week);
         const weekExecConfig = getWeekExecConfig(castCfg, targetDate);
-        await login(page, credentials.coxEmail, credentials.coxPassword);
+        await login(page, credentials.coxEmail, credentials.coxPassword, castCfg.mfaType);
         await fillTimesheet({
             page,
             cfg: weekExecConfig,
@@ -28,7 +28,7 @@ async function main(){
         });
         await browser.close();
     } catch (exc) {
-        const sendExceptionEmail = false;    // Set to false during development.
+        const sendExceptionEmail = true;    // Set to false during development.
         await handleException(exc, browser, page, targetDate || new Date(), castCfg, credentials, headless, sendExceptionEmail);
     }
 }

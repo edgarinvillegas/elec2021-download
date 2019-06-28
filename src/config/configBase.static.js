@@ -5,6 +5,7 @@
 */
 const config = {
     credentials: require('./credentials.json'),
+    mfaType: 'sms', // For now, only SMS is supported. It will only be used if Cox asks for MFA while logging in.
     week: 0,        // 0 will log current week. -1 for last week, -2 for 2 weeks ago, etc
     defaults: {
         emailSettings: {
