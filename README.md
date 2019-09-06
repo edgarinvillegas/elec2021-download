@@ -1,4 +1,4 @@
-#cox-timesheet (beta)
+# cox-timesheet (beta)
 ##Automatic cox timesheet filler.
 It can be executed on demmand, but better to have it scheduled to run automatically every week.
 
@@ -75,6 +75,7 @@ More detailed description coming soon.
 const config = {
     credentials: require('./credentials.json'),
     week: 0,        // 0 will log current week. -1 for last week, -2 for 2 weeks ago, etc. It must be <= 0
+    mfaType: 'sms', // For now, only SMS is supported. It will only be used if Cox asks for MFA while logging in.
     defaults: {
         emailSettings: {
             to: ['cox_report@mojix.com'],
