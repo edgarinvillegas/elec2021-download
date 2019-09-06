@@ -1,4 +1,4 @@
-# cox-timesheet (beta)
+# cox-timesheet
 ##Automatic cox timesheet filler.
 It can be executed on demmand, but better to have it scheduled to run automatically every week.
 
@@ -144,11 +144,11 @@ const config = {
    node index.js --credentials:coxPassword=myCoxPassword123 --credentials:mojixPassword=myMojixPassword456
    ```
 
-   You can also set them as environment variables. (Documentation coming soon).
+   You can also set them as environment variables. (nconf format).
 
 3. *How can I program it to run automatically every friday?*
 
-   You can use cronjobs in *nix and 'at' command on Windows (Documentation coming soon). It's recommended for it to run on a 24/7 workstation/server.
+   You can use cronjobs in *nix and 'at' command on Windows (Need docs? open an issue please). It's recommended for it to run on a 24/7 workstation/server.
    You'll just need to update the `zeroDays` (or weekOverrides for something very custom) from time to time when you know you'll be off.
 
 4. *If there's an error and timesheet cannot be filled, what happens?*
