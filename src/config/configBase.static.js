@@ -12,7 +12,7 @@ const config = {
             to: ['cox_report@mojix.com'],
             cc: ['LEAD_NAME@mojix.com'],
             bcc: [],
-            subjectTemplate: '{weekendDate} 1234 PEREZ'     // Here the convention is to put your employee ID and last name
+            subjectTemplate: '{weekendDate} 0000 YOUR_LAST_NAME'     // Here the convention is to put your employee ID and last name
         },
         workingDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday' ],
         /*The project key is the project id (found in timesheet page) and the first letters of the category (case insensitive)
@@ -35,7 +35,7 @@ const config = {
     * automatically added to Notes, like "Monday: Holiday | Thursday: PTO"
     */
     zeroDays: {
-        "Holiday": ['2018-06-06', '2018-11-02', '2018-12-25', '2019-01-01'],
+        "Holiday": ['2018-12-25', '2019-01-01', '2019-12-25', '2020-01-01'],
         "PTO": [],
         "Sick leave": [],
         "Put here your custom reason for zeroday": []
