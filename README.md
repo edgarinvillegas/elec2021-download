@@ -75,7 +75,7 @@ More detailed description coming soon.
 const config = {
     credentials: require('./credentials.json'),
     week: 0,        // 0 will log current week. -1 for last week, -2 for 2 weeks ago, etc. It must be <= 0
-    mfaType: 'sms', // For now, only SMS is supported. It will only be used if Cox asks for MFA while logging in.
+    mfaType: 'sms', // For now, only SMS and okta-verify are supported. It will only be used if Cox asks for MFA while logging in.
     defaults: {
         emailSettings: {
             to: ['cox_report@mojix.com'],
@@ -173,3 +173,5 @@ cd cox-timesheet
 npm install
 node index.js
 ```
+## Changelog
+0.5.0 Added support for okta-verify (push notification) multifactor authentication type
