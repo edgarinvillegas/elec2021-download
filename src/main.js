@@ -3,6 +3,7 @@ const fs = require('fs');
 const download = require('download')
 const delay$ = require('delay');
 const dateFns = require('date-fns')
+const makeDir = require('make-dir');
 
 const fetchAsyncJSON = async (url, method = 'get', body = undefined) => {
     try {
@@ -45,7 +46,7 @@ async function getFileMetadata(idDepartamento, tipoArchivo) {
 }
 
 const deptos = ['Chuquisaca', 'La Paz', 'Cochabamba', 'Oruro', 'Potosí', 'Tarija', 'Santa Cruz', 'Beni', 'Pando']
-const rootDirPath = './files';
+const rootDirPath = './files'
 
 function getStrTimestamp(date) {
     return dateFns.format(date || new Date(), 'YYYY-MM-DD HH:mm:ss');
@@ -65,9 +66,12 @@ async function downloadFile$(fileMetadata, idDepto) {
     // console.log('FileMetadata: ', fileMetadata)
     const da = fileMetadata.datoAdicional;
     const fileName = da.nombreArchivo;
-    //const rootDirPath = ''
     const dirPath = `${rootDirPath}/${deptos[idDepto-1]}`;
-    if(fs.existsSync(`${dirPath}/${fileName}`)) return;
+    if(fs.existsSync(`${dirPath}/${fileName}`)) {
+        console.log(`File ${fileName} already exists, skipping`)
+        return;
+    }
+    await Promise.all(deptos.map(depto => makeDir(`${rootDirPath}/${depto}`)));
     try {
         fs.appendFileSync(`${dirPath}/${fileName}-meta.json`, JSON.stringify(fileMetadata, null, 2));
         fs.appendFileSync(`${dirPath}/archivos-${da.tipoArchivo}.csv`, `${getStrTimestamp()},${da.fecha},${da.nombreArchivo},${da.hash},${da.archivo}\n`);
@@ -80,10 +84,6 @@ async function downloadFile$(fileMetadata, idDepto) {
 }
 
 async function main() {
-    // const body = {"idDepartamento":1,"tipoArchivo":"CSV"}
-    // const data = await fetchAsyncJSON('https://computo.oep.org.bo/api/v1/descargar', 'post', body)
-    // const fileMetadata = await getFileMetadata(1, 'CSV');
-    // await downloadFile$(fileMetadata)
     while(1) {
         for(let idDepto = 1; idDepto <= 9; idDepto++) {
             for(const tipoArchivo of ['CSV', 'EXCEL']) {
@@ -96,29 +96,9 @@ async function main() {
 
             }
         }
-        const minutosPeriodo = 1;
-        console.log(`Esperando ${minutosPeriodo} minuto(s)...`)
+        const minutosPeriodo = 5;
+        console.log(`[${getStrTimestamp()}] Esperando ${minutosPeriodo} minuto(s)...`)
         await delay$(minutosPeriodo * 1000 * 60)
-    }
-}
-
-async function main2(){
-    // Load configuration from file.
-    // const castCfg = readConfig();
-    // const credentials = castCfg.credentials;
-    const headless = false;
-    // Load the page
-    const { page, browser } = await createBrowserAndPage(headless);
-    try {
-        await login(page);
-        await getFileUrls({
-            page
-        });
-        // await browser.close();
-    } catch (exc) {
-        // const sendExceptionEmail = true;    // Set to false during development.
-        // await handleException(exc, browser, page, targetDate || new Date(), castCfg, credentials, headless, sendExceptionEmail);
-        console.log(exc.message)
     }
 }
 
