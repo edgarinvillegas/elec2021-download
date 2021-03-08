@@ -75,16 +75,4 @@ function readConfig() {
     return transformAndValidate(rawCfg);    //Will log and exit if validation errors are found
 }
 
-function getExecTargetDate(rawWeek, baseDate = new Date()) {
-    if(typeof(rawWeek) === 'number' || rawWeek == Number(rawWeek)){
-        if(rawWeek > 0) throw new Error('config.week cannot be positive yet. Enter a number equal or lower to 0')
-        return dateFns.addWeeks(baseDate, Number(rawWeek));
-    }
-    if(typeof(rawWeek) === 'string') {
-        return dateFns.parse(rawWeek);
-    }
-    return baseDate;
-}
-
-
 module.exports = { readConfig, getExecTargetDate };
