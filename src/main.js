@@ -4,8 +4,19 @@ const download = require('download')
 const delay$ = require('delay');
 const dateFns = require('date-fns')
 const makeDir = require('make-dir');
+const axios = require('axios');
 
 const fetchAsyncJSON = async (url, method = 'get', body = undefined) => {
+    const resp = await axios.request({
+        url,
+        data: body,
+        method,
+        timeout: 10000
+    });
+    return resp.data;
+}
+
+const fetchAsyncJSON_old = async (url, method = 'get', body = undefined) => {
     try {
         const response = await fetch(url, {
             headers: {
@@ -88,7 +99,9 @@ async function main() {
         for(let idDepto = 1; idDepto <= 9; idDepto++) {
             for(const tipoArchivo of ['CSV', 'EXCEL']) {
                 try {
+                    // console.log('A punto de obtener metadata ', tipoArchivo, deptos[idDepto-1])
                     const fileMetadata = await getFileMetadata(idDepto, tipoArchivo);
+                    // console.log('A punto de descargar ', tipoArchivo, deptos[idDepto-1])
                     await downloadFile$(fileMetadata, idDepto)
                 } catch(exc) {
                     log(`Descarga fallida para archivo ${tipoArchivo} de ${deptos[idDepto-1]}. (${exc.message})`)

@@ -11,6 +11,7 @@
   "author": "edgarinvillegas@hotmail.com",
   "license": "MIT",
   "dependencies": {
+    "axios": "^0.21.1",
     "console.table": "^0.10.0",
     "date-fns": "^1.29.0",
     "delay": "^5.0.0",
