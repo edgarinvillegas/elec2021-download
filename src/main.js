@@ -5,6 +5,7 @@ const delay$ = require('delay');
 const dateFns = require('date-fns')
 const makeDir = require('make-dir');
 const axios = require('axios');
+const pTimeout = require('p-timeout');
 
 const fetchAsyncJSON = async (url, method = 'get', body = undefined) => {
     const resp = await axios.request({
@@ -57,7 +58,9 @@ async function getFileMetadata(idDepartamento, tipoArchivo) {
 }
 
 const deptos = ['Chuquisaca', 'La Paz', 'Cochabamba', 'Oruro', 'Potosí', 'Tarija', 'Santa Cruz', 'Beni', 'Pando']
-const rootDirPath = './files'
+// const rootDirPath = './files'
+const rootDirPath = '/Users/evillegas-macbook/Google Drive/elecciones2021/elecciones-2021-1a-vuelta/archivos-computo-2021-1a-vuelta';
+
 
 function getStrTimestamp(date) {
     return dateFns.format(date || new Date(), 'YYYY-MM-DD HH:mm:ss');
@@ -82,11 +85,16 @@ async function downloadFile$(fileMetadata, idDepto) {
         console.log(`File ${fileName} already exists, skipping`)
         return;
     }
+    // console.log('Creando directorios...')
     await Promise.all(deptos.map(depto => makeDir(`${rootDirPath}/${depto}`)));
     try {
+        // console.log('Appending to files...')
         fs.appendFileSync(`${dirPath}/${fileName}-meta.json`, JSON.stringify(fileMetadata, null, 2));
         fs.appendFileSync(`${dirPath}/archivos-${da.tipoArchivo}.csv`, `${getStrTimestamp()},${da.fecha},${da.nombreArchivo},${da.hash},${da.archivo}\n`);
-        await download(da.archivo, dirPath);
+        // console.log('A punto de descargar ', da.nombreArchivo);
+        await pTimeout(download(da.archivo, dirPath, { timeout: 10000 }), 11000);
+        // const latestFilename = `_ultimo-${deptos[idDepto-1]}.` + da.archivo.split('.').reverse()[0];
+        // await pTimeout(download(da.archivo, dirPath, { timeout: 10000, filename: latestFilename }), 11000);
         log(`Descargado ${da.nombreArchivo}`)
     } catch (exc) {
         log(`Descarga fallida ${da.nombreArchivo} (${exc.message})`)
@@ -101,7 +109,6 @@ async function main() {
                 try {
                     // console.log('A punto de obtener metadata ', tipoArchivo, deptos[idDepto-1])
                     const fileMetadata = await getFileMetadata(idDepto, tipoArchivo);
-                    // console.log('A punto de descargar ', tipoArchivo, deptos[idDepto-1])
                     await downloadFile$(fileMetadata, idDepto)
                 } catch(exc) {
                     log(`Descarga fallida para archivo ${tipoArchivo} de ${deptos[idDepto-1]}. (${exc.message})`)
